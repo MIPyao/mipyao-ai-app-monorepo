@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    /* 模块化 - 采用最主流的 Node 兼容方案 */
+    "target": "ES2023",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* 严格性与类型检查 */
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+
+    /* Nest.js 和 Typescript 基础 */
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+
+    /* 路径配置 */
+    "baseUrl": "./"
+  }
+}

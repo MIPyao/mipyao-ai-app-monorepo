@@ -1,0 +1,9 @@
+专业技能： 
+基础：熟练掌握HTML5语义化与无障碍、熟悉CSS3动画与媒体查询、熟练掌握CSS预处理器与原子化CSS，精通JS的ES6+新特性、熟练掌握TypeScript类型与接口、精通AI Coding与Rules规范
+框架：精通Vue与框架原理源码及生态，Vue Router 、Pinia、Nuxt.js、Vite、Element Plus等；熟练掌握React与框架原理源码及生态，React Router、Zustand、Next.js、Antd；熟悉uni-app、Ionic
+工程化：熟练掌握Vite(Rolldown)、Webpack、Eslint、Oxlint，熟悉Git Hooks、CI/CD
+包管理：熟练掌握npm仓库发布与版本分支Tag管理、Verdaccio、FNM、nrm、pnpm
+数据可视化：熟练掌握Echarts、熟悉D3.js、antV
+网络：熟练掌握HTTP/HTTPS、熟悉CORS及代理、SSE、WebSocket
+后端&数据库：熟练掌握Node.js、Express、Restful API、Postman、Swagger，熟悉lowdb、MongoDB、MySQL、Redis
+部署：熟悉静态项目托管、KeepAlived主备、VRRP、Nginx负载均衡、PM2集群配置、Windows Server、Linux、微信小程序与谷歌应用商店Release

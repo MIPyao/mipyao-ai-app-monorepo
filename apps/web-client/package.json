@@ -1,0 +1,31 @@
+{
+  "name": "@mipyao/web-client",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start:dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "^2.0.109",
+    "ai": "^5.0.108",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.559.0",
+    "next": "16.0.8",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

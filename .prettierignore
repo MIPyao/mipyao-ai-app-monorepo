@@ -1,0 +1,13 @@
+# 忽略依赖和编译输出
+node_modules
+dist
+.next
+coverage
+*.log
+pnpm-lock.yaml
+
+# 忽略临时文件
+.ts-cache
+
+# 忽略 Next.js 自动生成的文件
+apps/web-client/next-env.d.ts

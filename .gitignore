@@ -1,0 +1,18 @@
+# Pnpm Dependencies
+node_modules
+.pnpm-store
+
+# Build Outputs
+dist
+build
+
+# Nest.js
+/apps/api-server/dist
+.DS_Store
+
+# Pnpm Workspaces
+/apps/*/dist
+/packages/*/dist
+
+# Logs
+*.log

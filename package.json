@@ -1,0 +1,37 @@
+{
+  "name": "mipyao-ai-app-monorepo",
+  "version": "1.0.0",
+  "description": "一个基于 RAG (检索增强生成) 技术的智能简历问答系统，使用 Next.js、NestJS 和 LangChain.js 构建。",
+  "main": "index.js",
+  "scripts": {
+    "build:libs": "pnpm --filter \"@mipyao/ai-service\" run build",
+    "build:apps": "pnpm --filter \"@mipyao/api-server\" --filter \"@mipyao/web-client\" run build",
+    "build:all": "pnpm --filter \"@mipyao/*\" run build",
+    "dev": "pnpm build:libs && pnpm --parallel --stream -r run start:dev",
+    "start:api": "pnpm --filter api-server start:dev",
+    "start:web": "pnpm --filter web-client start:dev",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,scss,md,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,scss,md,yaml}\"",
+    "lint:api": "oxlint apps/api-server",
+    "lint:web": "oxlint apps/web-client",
+    "lint:ai": "oxlint packages/ai-service",
+    "lint": "npm run lint:api && npm run lint:web && npm run lint:ai"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.25.0",
+  "pnpm": {
+    "overrides": {
+      "openai": "6.10.0",
+      "zod": "4.1.13",
+      "dotenv": "17.2.3"
+    }
+  },
+  "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
+    "dotenv": "^17.2.3",
+    "oxlint": "^1.32.0",
+    "prettier": "^3.7.4"
+  }
+}

@@ -1,0 +1,11 @@
+项目经验：
+国家科技资源共享服务工程技术研究中心官网（React+Express） | 个人完成（http://nstr.escience.net.cn/）
+1.全栈现代化重构与安全保障
+主导中心官网的全栈现代化重构（从 2017 旧版升级），前端采用 Vite + React 19 + Zustand 构建，并通过 Husky 严格控制代码质量。
+后端基于 Express 5 + Mongoose 搭建，实现了基于 JWT 的认证机制和 bcryptjs 密码加密，确保了用户认证和数据传输的安全性。
+2. 关键合规性与工程解决方案
+解决了机房满足三级等保要求的 WAF 拦截 PUT/DELETE 请求 的工程难题。
+通过设计并落地 自定义 HTTP 头 X-HTTP-Method-Override 的方式，构建了可持续的工程解决方案，完美绕过了安全限制，保障了后端 API 的完整性。
+3. 性能优化与部署
+实现了前端极致性能优化，通过 React Suspense/Lazy 优雅实现组件按需加载。
+结合 Terser JS 压缩 和 Nginx Gzip 静态资源压缩 策略，显著提升了网站的首屏加载速度和用户体验，并采用 PM2 进行后端服务部署和进程管理。

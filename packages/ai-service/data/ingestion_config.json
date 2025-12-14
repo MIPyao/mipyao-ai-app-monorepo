@@ -1,0 +1,42 @@
+[
+  {
+    "file": "resume1.txt",
+    "document_title": "基本信息",
+    "section_title": "姓名 求职意向 籍贯 出生年月 毕业院校 邮箱 github 教育背景"
+  },
+  {
+    "file": "resume2.txt",
+    "document_title": "工作经历",
+    "section_title": "工作经历"
+  },
+  {
+    "file": "resume3.txt",
+    "document_title": "项目：科技部野外台站数据可视化大屏",
+    "section_title": "Vue3 Echarts Web Worker"
+  },
+  {
+    "file": "resume4.txt",
+    "document_title": "项目：虚拟网络管理Wormhole子系统",
+    "section_title": "Electron npm包 Vue tsx Github Actions"
+  },
+  {
+    "file": "resume5.txt",
+    "document_title": "项目：国家科技创新平台基地管理信息系统",
+    "section_title": "NodeJS BFF Redis CI/CD PM2 GitHooks"
+  },
+  {
+    "file": "resume6.txt",
+    "document_title": "专业技能",
+    "section_title": "专业技能 基础 框架 工程化 包管理 数据可视化 网络 后端 数据库 部署"
+  },
+  {
+    "file": "resume7.txt",
+    "document_title": "项目：国家科技资源共享服务工程技术研究中心官网",
+    "section_title": "React Express Zustand Mongoose"
+  },
+  {
+    "file": "resume8.txt",
+    "document_title": "项目：WEBSDP访问控制系统",
+    "section_title": "Vue Element-UI SSE AOS"
+  }
+]
