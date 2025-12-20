@@ -1,5 +1,5 @@
 import { PGVectorStore } from "@langchain/community/vectorstores/pgvector";
-import { OllamaEmbeddings } from "@langchain/ollama";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 import { Client } from "pg";
@@ -29,11 +29,11 @@ const getConfigFromEnv = (): RagConfig => ({
     tableName: process.env.POSTGRES_TABLE_NAME!,
     dimensions: parseInt(process.env.POSTGRES_DIMENSIONS!, 10),
   },
-  ollamaConfig: {
-    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL!,
-    llmModel: process.env.OLLAMA_LLM_MODEL!,
-    temperature: parseFloat(process.env.OLLAMA_LLM_TEMPERATURE!),
-    repeatPenalty: parseFloat(process.env.OLLAMA_LLM_REPEAT_PENALTY!),
+  geminiConfig: {
+    apiKey: process.env.GEMINI_API_KEY!,
+    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL!,
+    llmModel: process.env.GEMINI_LLM_MODEL!,
+    temperature: parseFloat(process.env.GEMINI_LLM_TEMPERATURE!),
   },
 });
 
@@ -118,10 +118,43 @@ async function ingestData() {
   }
 
   try {
+    // 验证配置
+    console.log("📋 配置信息:");
+    console.log(`   嵌入模型: ${config.geminiConfig.embeddingModel}`);
+    console.log(`   配置维度: ${config.dbConfig.dimensions}`);
+    console.log(
+      `   API Key: ${config.geminiConfig.apiKey ? "已设置" : "未设置"}`,
+    );
+
     // 初始化 VectorStore
-    const embeddings = new OllamaEmbeddings({
-      model: config.ollamaConfig.embeddingModel,
+    const embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey: config.geminiConfig.apiKey,
+      modelName: config.geminiConfig.embeddingModel,
     });
+
+    // 测试嵌入模型 - 验证实际输出维度
+    console.log("🧪 测试嵌入模型...");
+    try {
+      const testEmbedding = await embeddings.embedQuery("test");
+      const actualDimensions = testEmbedding.length;
+      console.log(`   ✅ 嵌入模型实际输出维度: ${actualDimensions}`);
+
+      if (actualDimensions === 0) {
+        throw new Error("嵌入模型返回了空向量！");
+      }
+
+      if (actualDimensions !== config.dbConfig.dimensions) {
+        console.warn(
+          `   ⚠️  警告: 配置维度 (${config.dbConfig.dimensions}) 与模型实际维度 (${actualDimensions}) 不匹配！`,
+        );
+        console.warn(
+          `   建议将 POSTGRES_DIMENSIONS 设置为 ${actualDimensions}`,
+        );
+      }
+    } catch (embedTestErr: any) {
+      console.error("   ❌ 嵌入模型测试失败:", embedTestErr.message);
+      throw new Error(`嵌入模型初始化失败: ${embedTestErr.message}`);
+    }
 
     const vectorStore = await PGVectorStore.initialize(embeddings, {
       tableName: config.dbConfig.tableName,
@@ -154,15 +187,39 @@ async function ingestData() {
     const docs = await splitter.splitDocuments(allDocsToSplit);
     console.log(`📊 文档分割成 ${docs.length} 个文本块。`);
 
-    // 嵌入并入库
+    // 检查是否有空文档块
+    const emptyDocs = docs.filter(
+      (doc) => !doc.pageContent || doc.pageContent.trim().length === 0,
+    );
+    if (emptyDocs.length > 0) {
+      console.warn(`⚠️  警告: 发现 ${emptyDocs.length} 个空文档块，将被跳过。`);
+    }
+    const validDocs = docs.filter(
+      (doc) => doc.pageContent && doc.pageContent.trim().length > 0,
+    );
+    console.log(`📝 有效文档块数量: ${validDocs.length}`);
+
+    if (validDocs.length === 0) {
+      console.error("❌ 没有有效的文档块可以导入！");
+      return;
+    }
+
+    // 嵌入并入库 - 使用批量处理，避免一次性处理太多
     console.log("⚡ 正在生成向量并批量入库...");
-    await vectorStore.addDocuments(docs);
+    const batchSize = 10; // 每批处理 10 个文档
+    for (let i = 0; i < validDocs.length; i += batchSize) {
+      const batch = validDocs.slice(i, i + batchSize);
+      console.log(
+        `   处理批次 ${Math.floor(i / batchSize) + 1}/${Math.ceil(validDocs.length / batchSize)} (${batch.length} 个文档)...`,
+      );
+      await vectorStore.addDocuments(batch);
+    }
     console.log("✅ 数据批量入库成功！");
-    console.log(`✅ 向量库已包含 ${docs.length} 个文档块。`);
+    console.log(`✅ 向量库已包含 ${validDocs.length} 个文档块。`);
   } catch (err) {
     console.error("\n❌ RAG 数据导入流程失败! 详细错误:", err);
     console.error(
-      "请确保：1. Docker数据库运行中。2. Ollama 服务运行中。3. 配置文件和数据文件正确。",
+      "请确保：1. Docker数据库运行中。2. Gemini API Key 配置正确。3. 配置文件和数据文件正确。",
     );
   }
 }

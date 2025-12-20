@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json --diagnostics",
     "test:rag": "ts-node -P tsconfig.scripts.json scripts/test-rag.ts",
-    "ingest:data": "ts-node -P tsconfig.scripts.json scripts/ingest.ts"
+    "ingest:data": "ts-node -P tsconfig.scripts.json scripts/ingest.ts",
+    "list:models": "ts-node -P tsconfig.scripts.json scripts/list-gemini-models.ts"
   },
   "keywords": [
     "rag",
@@ -18,16 +19,16 @@
   "packageManager": "pnpm@10.16.1",
   "dependencies": {
     "@langchain/community": "^1.0.7",
-    "@langchain/core": "^1.1.4",
+    "@langchain/core": "^1.1.7",
+    "@langchain/google-genai": "^2.1.2",
     "@langchain/textsplitters": "^1.0.1",
-    "@langchain/ollama": "^1.0.3",
     "@types/pg": "^8.15.6",
     "langchain": "^1.1.5",
     "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@types/node": "^22.7.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3",
-    "@types/node": "^22.7.5"
+    "typescript": "^5.6.3"
   }
 }

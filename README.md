@@ -169,6 +169,32 @@ ollama pull qwen2.5:1.8b
 
 在项目根目录创建 `.env` 文件（如果不存在），配置以下环境变量：
 
+#### 使用 Gemini API（推荐）
+
+```env
+# PostgreSQL 数据库配置
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=ai_rag_db
+POSTGRES_USER=rag_user
+POSTGRES_PASSWORD=rag_password
+POSTGRES_TABLE_NAME=documents
+
+# Gemini API 配置
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_EMBEDDING_MODEL=embedding-001
+# 注意：模型名称必须正确，v1beta API 不支持 -latest 后缀
+
+# 重要：向量维度必须与嵌入模型匹配
+# embedding-001 输出 768 维向量
+POSTGRES_DIMENSIONS=768
+
+# API 服务配置
+NESTJS_API_BASE_URL=http://localhost:3000
+```
+
+#### 使用 Ollama（本地部署）
+
 ```env
 # PostgreSQL 数据库配置
 DB_HOST=localhost
@@ -335,6 +361,16 @@ mipyao-ai-app-monorepo/
 - 确保 Docker 容器正在运行：`docker ps`
 - 检查数据库端口 5432 是否被占用
 - 验证 `.env` 文件中的数据库配置
+
+### Gemini API 模型名称错误
+
+如果遇到 `404 Not Found` 错误：
+
+- **重要**：v1beta API 不支持 `-latest` 后缀
+- 检查 `.env` 文件中的 `GEMINI_LLM_MODEL` 环境变量
+- 使用正确的模型名称
+- 确保 `GEMINI_API_KEY` 已正确设置
+- 运行 `pnpm list:models` 查看所有可用的模型列表
 
 ### Ollama 连接失败
 

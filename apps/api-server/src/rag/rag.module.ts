@@ -45,16 +45,14 @@ export const RAG_CONFIG_TOKEN = "RAG_CONFIG";
             infer: true,
           }),
         },
-        ollamaConfig: {
+        geminiConfig: {
+          apiKey: configService.getOrThrow<string>("GEMINI_API_KEY"),
           embeddingModel: configService.getOrThrow<string>(
-            "OLLAMA_EMBEDDING_MODEL",
+            "GEMINI_EMBEDDING_MODEL",
           ),
-          llmModel: configService.getOrThrow<string>("OLLAMA_LLM_MODEL"),
+          llmModel: configService.getOrThrow<string>("GEMINI_LLM_MODEL"),
           temperature: parseFloat(
-            configService.getOrThrow<string>("OLLAMA_LLM_TEMPERATURE"),
-          ),
-          repeatPenalty: parseFloat(
-            configService.getOrThrow<string>("OLLAMA_LLM_REPEAT_PENALTY"),
+            configService.getOrThrow<string>("GEMINI_LLM_TEMPERATURE"),
           ),
         },
       }),

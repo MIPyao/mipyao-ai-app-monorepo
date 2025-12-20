@@ -8,10 +8,10 @@ export interface RagConfig {
     tableName: string;
     dimensions: number;
   };
-  ollamaConfig: {
+  geminiConfig: {
+    apiKey: string;
     embeddingModel: string;
     llmModel: string;
     temperature: number;
-    repeatPenalty: number;
   };
 }
