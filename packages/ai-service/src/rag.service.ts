@@ -223,7 +223,7 @@ export class RagService {
         apiKey: geminiConfig.apiKey,
         model: modelName,
         temperature: geminiConfig.temperature, // 降低温度，减少随机性，使其更倾向于事实性回答
-        maxOutputTokens: 500, // 限制输出长度，防止无限重复
+        maxOutputTokens: 3000, // 限制输出长度，防止无限重复
       });
 
       // 5. 创建 Prompt Template
