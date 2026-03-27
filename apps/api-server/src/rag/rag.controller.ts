@@ -69,7 +69,7 @@ export class RagController {
       console.error("RAG Stream API 错误:", errorMessage);
       // 返回 SERVICE_UNAVAILABLE 状态码，表示 AI 服务层存在问题
       throw new HttpException(
-        "AI 服务处理失败，请检查 Gemini API 配置和后端日志。",
+        "AI 服务处理失败，请检查 OpenRouter/SiliconFlow API 配置和后端日志。",
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }

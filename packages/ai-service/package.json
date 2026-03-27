@@ -7,8 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json --diagnostics",
     "test:rag": "tsx scripts/test-rag.ts",
-    "ingest:data": "tsx scripts/ingest.ts",
-    "list:models": "tsx scripts/list-gemini-models.ts"
+    "ingest:data": "tsx scripts/ingest.ts"
   },
   "keywords": [
     "rag",
