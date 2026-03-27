@@ -1,10 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json", // <-- 继承基准配置
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "NodeNext", // <-- 保持 NodeNext，因为 ts-node 有时需要它来执行脚本
-    "moduleResolution": "NodeNext",
-    "outDir": "./.ts-cache" // <-- 脚本运行不需要编译到 dist
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": "./.ts-cache"
   },
-  "include": ["scripts/**/*.ts", "src/**/*.ts"], // <-- 确保包含 scripts
+  "include": ["scripts/**/*.ts", "src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

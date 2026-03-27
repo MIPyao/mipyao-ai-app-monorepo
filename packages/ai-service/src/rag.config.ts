@@ -8,10 +8,15 @@ export interface RagConfig {
     tableName: string;
     dimensions: number;
   };
-  geminiConfig: {
+  openrouterConfig: {
     apiKey: string;
-    embeddingModel: string;
-    llmModel: string;
+    baseUrl: string;
+    model: string;
     temperature: number;
+  };
+  siliconflowConfig: {
+    apiKey: string;
+    baseUrl: string;
+    embeddingModel: string;
   };
 }

@@ -17,11 +17,16 @@ const getConfigFromEnv = (): RagConfig => ({
     tableName: process.env.POSTGRES_TABLE_NAME!,
     dimensions: parseInt(process.env.POSTGRES_DIMENSIONS!, 10),
   },
-  geminiConfig: {
-    apiKey: process.env.GEMINI_API_KEY!,
-    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL!,
-    llmModel: process.env.GEMINI_LLM_MODEL!,
-    temperature: parseFloat(process.env.GEMINI_LLM_TEMPERATURE!),
+  openrouterConfig: {
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    baseUrl: process.env.OPENROUTER_BASE_URL!,
+    model: process.env.OPENROUTER_MODEL!,
+    temperature: parseFloat(process.env.OPENROUTER_TEMPERATURE!),
+  },
+  siliconflowConfig: {
+    apiKey: process.env.SILICONFLOW_API_KEY!,
+    baseUrl: process.env.SILICONFLOW_BASE_URL!,
+    embeddingModel: process.env.SILICONFLOW_EMBEDDING_MODEL!,
   },
 });
 
@@ -133,7 +138,7 @@ async function main() {
   const config = getConfigFromEnv();
   console.log("--- RAG Service 独立测试开始 ---");
   console.log(
-    `💡 RAG配置加载成功，DB: ${config.dbConfig.database}, LLM: ${config.geminiConfig.llmModel}`,
+    `💡 RAG配置加载成功，DB: ${config.dbConfig.database}, LLM: ${config.openrouterConfig.model}`,
   );
 
   // 实例化服务（只做一次）

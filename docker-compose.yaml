@@ -5,7 +5,7 @@ services:
     container_name: ai_pg_db
     restart: always
     ports:
-      - "5432:5432"
+      - "5000:5432"
     environment:
       POSTGRES_USER: rag_user
       POSTGRES_PASSWORD: rag_password

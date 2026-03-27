@@ -1,5 +1,5 @@
 import { PGVectorStore } from "@langchain/community/vectorstores/pgvector";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { OpenAIEmbeddings } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 import { Client } from "pg";
@@ -29,11 +29,16 @@ const getConfigFromEnv = (): RagConfig => ({
     tableName: process.env.POSTGRES_TABLE_NAME!,
     dimensions: parseInt(process.env.POSTGRES_DIMENSIONS!, 10),
   },
-  geminiConfig: {
-    apiKey: process.env.GEMINI_API_KEY!,
-    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL!,
-    llmModel: process.env.GEMINI_LLM_MODEL!,
-    temperature: parseFloat(process.env.GEMINI_LLM_TEMPERATURE!),
+  openrouterConfig: {
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    baseUrl: process.env.OPENROUTER_BASE_URL!,
+    model: process.env.OPENROUTER_MODEL!,
+    temperature: parseFloat(process.env.OPENROUTER_TEMPERATURE!),
+  },
+  siliconflowConfig: {
+    apiKey: process.env.SILICONFLOW_API_KEY!,
+    baseUrl: process.env.SILICONFLOW_BASE_URL!,
+    embeddingModel: process.env.SILICONFLOW_EMBEDDING_MODEL!,
   },
 });
 
@@ -52,6 +57,72 @@ async function clearTable(
   } catch (e) {
     console.error(`❌ 清空表 ${tableName} 失败。`, e);
     throw e;
+  } finally {
+    await client.end();
+  }
+}
+
+async function dropTableIfDimensionMismatch(
+  tableName: string,
+  dbConfig: RagConfig["dbConfig"],
+): Promise<void> {
+  const client = new Client(dbConfig);
+  try {
+    await client.connect();
+
+    // 检查表是否存在
+    const tableExists = await client.query(
+      `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = $1
+      );
+    `,
+      [tableName],
+    );
+
+    if (!tableExists.rows[0].exists) {
+      console.log(`📋 表 ${tableName} 不存在，将创建新表。`);
+      return;
+    }
+
+    // 检查向量维度
+    const columnInfo = await client.query(
+      `
+      SELECT atttypmod 
+      FROM pg_attribute 
+      WHERE attrelid = $1::regclass 
+      AND attname = 'embedding';
+    `,
+      [tableName],
+    );
+
+    if (columnInfo.rows.length > 0) {
+      // atttypmod 包含维度信息，格式为 (维度 + 4)
+      const currentDimension = columnInfo.rows[0].atttypmod - 4;
+      console.log(
+        `📊 当前表维度: ${currentDimension}, 配置维度: ${dbConfig.dimensions}`,
+      );
+
+      if (currentDimension !== dbConfig.dimensions) {
+        console.log(
+          `⚠️  维度不匹配 (${currentDimension} ≠ ${dbConfig.dimensions})，需要重建表。`,
+        );
+        await client.query(`DROP TABLE IF EXISTS "${tableName}";`);
+        console.log(`✅ 已删除旧表 ${tableName}。`);
+      } else {
+        console.log(`✅ 维度匹配，保留现有表。`);
+      }
+    }
+  } catch (e) {
+    console.error(`❌ 检查表维度失败:`, e);
+    // 如果检查失败，尝试删除表重建
+    try {
+      await client.query(`DROP TABLE IF EXISTS "${tableName}";`);
+      console.log(`⚠️  已删除表 ${tableName}（检查失败，强制重建）。`);
+    } catch (dropErr) {
+      console.error(`❌ 删除表失败:`, dropErr);
+    }
   } finally {
     await client.end();
   }
@@ -99,12 +170,22 @@ async function ingestData() {
   // 检查数据库连接
   const client = new Client(config.dbConfig);
 
-  // 清理旧数据
+  // 检查并处理维度不匹配的表
+  try {
+    await dropTableIfDimensionMismatch(
+      config.dbConfig.tableName,
+      config.dbConfig,
+    );
+  } catch (e) {
+    console.error("❌ 检查表维度失败，退出导入流程:", e);
+    return;
+  }
+
+  // 清理旧数据（如果表存在）
   try {
     await clearTable(config.dbConfig.tableName, config.dbConfig);
   } catch (e) {
-    console.error("❌ 清空表失败，退出导入流程:", e);
-    return;
+    console.log("ℹ️  表不存在或清空失败，将在导入时创建新表。");
   }
 
   try {
@@ -120,16 +201,21 @@ async function ingestData() {
   try {
     // 验证配置
     console.log("📋 配置信息:");
-    console.log(`   嵌入模型: ${config.geminiConfig.embeddingModel}`);
+    console.log(
+      `   嵌入模型: ${config.siliconflowConfig.embeddingModel} (via SiliconFlow)`,
+    );
     console.log(`   配置维度: ${config.dbConfig.dimensions}`);
     console.log(
-      `   API Key: ${config.geminiConfig.apiKey ? "已设置" : "未设置"}`,
+      `   API Key: ${config.siliconflowConfig.apiKey ? "已设置" : "未设置"}`,
     );
 
-    // 初始化 VectorStore
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: config.geminiConfig.apiKey,
-      modelName: config.geminiConfig.embeddingModel,
+    // 初始化 VectorStore (使用 SiliconFlow 的嵌入模型)
+    const embeddings = new OpenAIEmbeddings({
+      apiKey: config.siliconflowConfig.apiKey,
+      modelName: config.siliconflowConfig.embeddingModel,
+      configuration: {
+        baseURL: config.siliconflowConfig.baseUrl,
+      },
     });
 
     // 测试嵌入模型 - 验证实际输出维度
@@ -219,7 +305,7 @@ async function ingestData() {
   } catch (err) {
     console.error("\n❌ RAG 数据导入流程失败! 详细错误:", err);
     console.error(
-      "请确保：1. Docker数据库运行中。2. Gemini API Key 配置正确。3. 配置文件和数据文件正确。",
+      "请确保：1. Docker数据库运行中。2. SiliconFlow API Key 配置正确。3. 配置文件和数据文件正确。",
     );
   }
 }

@@ -34,10 +34,18 @@
          │
     ┌────┴────┐
     ▼         ▼
-┌────────┐ ┌──────────┐
-│ Ollama │ │PostgreSQL│
-│  LLM   │ │ pgvector │
-└────────┘ └──────────┘
+┌─────────────┐ ┌──────────┐
+│ OpenRouter  │ │PostgreSQL│
+│ Step-3.5   │ │ pgvector │
+│ (LLM)      │ │          │
+└─────────────┘ └──────────┘
+      │
+      ▼
+┌─────────────┐
+│SiliconFlow  │
+│ BAAI/bge-m3│
+│ (Embeddings)│
+└─────────────┘
 ```
 
 ### 1. 前端服务 (Web Client)
@@ -93,14 +101,15 @@
 **技术栈**:
 
 - **LangChain** - LLM 应用框架
-- **Ollama** - 本地 LLM 运行环境
+- **OpenRouter** - LLM API (Step-3.5-flash)
+- **SiliconFlow** - 嵌入模型 API (BAAI/bge-m3)
 - **PostgreSQL + pgvector** - 向量数据库
 
 **主要功能**:
 
-- 文档向量化与存储
+- 文档向量化与存储 (SiliconFlow BAAI/bge-m3)
 - 相似度检索 (RAG)
-- LLM 问答生成
+- LLM 问答生成 (OpenRouter Step-3.5-flash)
 - 流式输出支持
 
 **核心服务**:
@@ -111,8 +120,8 @@
 
 **数据流程**:
 
-1. 文档导入 → 文本分割 → 向量化 → 存储到 PostgreSQL
-2. 用户查询 → 向量检索 → 上下文构建 → LLM 生成回答
+1. 文档导入 → 文本分割 → 向量化 (SiliconFlow) → 存储到 PostgreSQL
+2. 用户查询 → 向量检索 → 上下文构建 → LLM (OpenRouter) 生成回答
 
 ## 🛠️ 技术栈
 
@@ -131,8 +140,9 @@
 
 ### AI 服务
 
-- LangChain 1.1.5
-- Ollama (本地 LLM)
+- LangChain
+- OpenRouter (Step-3.5-flash 免费 LLM)
+- SiliconFlow (BAAI/bge-m3 免费嵌入模型)
 - PostgreSQL 16 + pgvector
 
 ### 开发工具
@@ -149,68 +159,54 @@
 1. **Node.js** >= 18
 2. **pnpm** >= 10.25.0
 3. **Docker** 和 **Docker Compose** (用于运行 PostgreSQL)
-4. **Ollama** (本地 LLM 服务)
+4. **OpenRouter API Key** (用于 LLM)
+5. **SiliconFlow API Key** (用于嵌入模型)
 
-### 安装 Ollama
+### 获取 API Key
 
-访问 [Ollama 官网](https://ollama.ai/) 下载并安装。
+#### OpenRouter (免费 LLM)
 
-启动 Ollama 服务后，拉取所需的模型：
+1. 访问 [OpenRouter](https://openrouter.ai/) 注册账号
+2. 在 Dashboard 获取 API Key
+3. 免费模型推荐: `step-3.5-flash`
 
-```bash
-# 拉取嵌入模型
-ollama pull nomic-embed
+#### SiliconFlow (免费嵌入)
 
-# 拉取 LLM 模型 (推荐使用 Qwen1.8B 或其他小模型)
-ollama pull qwen2.5:1.8b
-```
+1. 访问 [SiliconFlow](https://siliconflow.cn/) 注册账号
+2. 在控制台获取 API Key
+3. 免费嵌入模型: `BAAI/bge-m3` (1024维)
 
 ### 环境配置
 
 在项目根目录创建 `.env` 文件（如果不存在），配置以下环境变量：
 
-#### 使用 Gemini API（推荐）
-
 ```env
-# PostgreSQL 数据库配置
+# --- RAG/PostgreSQL 配置 ---
 POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+POSTGRES_PORT=5000
 POSTGRES_DATABASE=ai_rag_db
 POSTGRES_USER=rag_user
 POSTGRES_PASSWORD=rag_password
 POSTGRES_TABLE_NAME=documents
+# BAAI/bge-m3 嵌入维度是 1024
+POSTGRES_DIMENSIONS=1024
 
-# Gemini API 配置
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_EMBEDDING_MODEL=embedding-001
-# 注意：模型名称必须正确，v1beta API 不支持 -latest 后缀
+# --- OpenRouter 配置 (LLM) ---
+OPENROUTER_API_KEY=你的OpenRouter_API_Key
+OPENROUTER_MODEL=step-3.5-flash
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_TEMPERATURE=0.1
 
-# 重要：向量维度必须与嵌入模型匹配
-# embedding-001 输出 768 维向量
-POSTGRES_DIMENSIONS=768
+# --- SiliconFlow 配置 (Embeddings) ---
+SILICONFLOW_API_KEY=你的SiliconFlow_API_Key
+SILICONFLOW_EMBEDDING_MODEL=BAAI/bge-m3
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
-# API 服务配置
-NESTJS_API_BASE_URL=http://localhost:3000
+# Nest.js API 后端实际运行的地址
+NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:3000
 ```
 
-#### 使用 Ollama（本地部署）
-
-```env
-# PostgreSQL 数据库配置
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=ai_rag_db
-DB_USER=rag_user
-DB_PASSWORD=rag_password
-
-# Ollama 配置
-OLLAMA_BASE_URL=http://localhost:11434
-EMBEDDING_MODEL=nomic-embed
-LLM_MODEL=qwen2.5:1.8b
-
-# API 服务配置
-NESTJS_API_BASE_URL=http://localhost:3000
-```
+> **注意**: 由于 Windows Hyper-V 端口限制，PostgreSQL 默认端口改为 5000。如果遇到端口冲突，可以修改 `docker-compose.yaml` 中的端口映射。
 
 ### 启动步骤
 
@@ -242,6 +238,8 @@ pnpm ingest:data
 ```
 
 这将读取 `packages/ai-service/data/` 目录下的简历文件，进行向量化并存储到数据库。
+
+> **注意**: 首次导入数据后，如果修改了嵌入模型或维度，需要重新导入。
 
 #### 5. 启动开发服务器
 
@@ -323,7 +321,7 @@ mipyao-ai-app-monorepo/
 │   └── web-client/          # Next.js 前端应用
 │       ├── src/
 │       │   ├── app/         # Next.js App Router
-│       │   ├── components/  # React 组件
+│       │   ├── components/   # React 组件
 │       │   └── lib/         # 工具函数
 │       └── package.json
 ├── packages/
@@ -344,11 +342,17 @@ mipyao-ai-app-monorepo/
 ### 添加新的简历数据
 
 1. 将简历文本文件放入 `packages/ai-service/data/` 目录
-2. 运行 `pnpm ingest:data` 重新导入数据
+2. 修改 `packages/ai-service/data/ingestion_config.json` 添加文档配置
+3. 运行 `pnpm ingest:data` 重新导入数据
 
 ### 修改 AI 模型
 
-在 `.env` 文件中修改 `EMBEDDING_MODEL` 和 `LLM_MODEL` 环境变量。
+在 `.env` 文件中修改对应的环境变量：
+
+- **LLM 模型**: 修改 `OPENROUTER_MODEL`
+- **嵌入模型**: 修改 `SILICONFLOW_EMBEDDING_MODEL`
+
+修改后需要重新导入数据。
 
 ### API 文档
 
@@ -359,30 +363,46 @@ mipyao-ai-app-monorepo/
 ### 数据库连接失败
 
 - 确保 Docker 容器正在运行：`docker ps`
-- 检查数据库端口 5432 是否被占用
+- 检查数据库端口 5000 是否被占用
 - 验证 `.env` 文件中的数据库配置
+- 如果遇到 Windows 端口问题，检查 docker-compose.yaml 中的端口映射
 
-### Gemini API 模型名称错误
+### OpenRouter API 错误
+
+如果遇到 `401 Unauthorized` 错误：
+
+- 检查 `OPENROUTER_API_KEY` 是否正确
+- 确认 API Key 有足够余额
 
 如果遇到 `404 Not Found` 错误：
 
-- **重要**：v1beta API 不支持 `-latest` 后缀
-- 检查 `.env` 文件中的 `GEMINI_LLM_MODEL` 环境变量
-- 使用正确的模型名称
-- 确保 `GEMINI_API_KEY` 已正确设置
-- 运行 `pnpm list:models` 查看所有可用的模型列表
+- 检查 `OPENROUTER_MODEL` 是否正确
+- 确认模型名称可用
 
-### Ollama 连接失败
+### SiliconFlow API 错误
 
-- 确保 Ollama 服务正在运行：`ollama list`
-- 检查 `OLLAMA_BASE_URL` 环境变量是否正确
-- 确认所需的模型已下载：`ollama list`
+如果遇到嵌入相关错误：
+
+- 检查 `SILICONFLOW_API_KEY` 是否正确
+- 确认 `SILICONFLOW_EMBEDDING_MODEL` 可用
+- 验证 `POSTGRES_DIMENSIONS` 与嵌入模型维度匹配
 
 ### 前端无法连接后端
 
 - 检查 `NEXT_PUBLIC_NESTJS_API_BASE_URL` 环境变量
 - 确认 API 服务器正在运行在端口 3000
 - 检查浏览器控制台的网络请求错误
+
+### 嵌入维度不匹配
+
+如果数据库中的向量维度与配置不匹配，运行以下命令重新导入：
+
+```bash
+cd packages/ai-service
+pnpm ingest:data
+```
+
+导入脚本会自动检测维度并重建表。
 
 ## 📄 许可证
 
