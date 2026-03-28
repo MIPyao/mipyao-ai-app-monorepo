@@ -15,38 +15,58 @@
 ### 整体架构图
 
 ```
-┌─────────────────┐
-│   Web Client    │  Next.js 前端应用 (端口 3001)
-│   (Next.js)     │
-└────────┬────────┘
-         │ HTTP 请求
-         ▼
-┌─────────────────┐
-│   API Server    │  NestJS 后端服务 (端口 3000)
-│   (NestJS)      │
-└────────┬────────┘
-         │ 调用
-         ▼
-┌─────────────────┐
-│   AI Service    │  RAG 核心服务包
-│  (LangChain)    │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌─────────────┐ ┌──────────┐
-│ OpenRouter  │ │PostgreSQL│
-│ Step-3.5   │ │ pgvector │
-│ (LLM)      │ │          │
-└─────────────┘ └──────────┘
-      │
-      ▼
-┌─────────────┐
-│SiliconFlow  │
-│ BAAI/bge-m3│
-│ (Embeddings)│
-└─────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                      Web Client                         │
+│                   Next.js (端口 3001)                    │
+│   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
+│   │   VoiceInput  │  │ ChatMessage   │  │ StreamAudio│ │
+│   │   (语音输入)   │  │   (消息展示)   │  │  Player    │ │
+│   └───────────────┘  └───────────────┘  └────────────┘ │
+└────────────────────────┬────────────────────────────────┘
+                          │ HTTP/SSE
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│                      API Server                         │
+│                  NestJS (端口 3000)                      │
+│   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
+│   │ RagController │  │SpeechController│ │RagTtsCtrl  │ │
+│   │   /rag/stream │  │  /speech/*     │ │/rag-tts/*  │ │
+│   └───────┬───────┘  └───────┬───────┘  └─────┬──────┘ │
+└───────────┼──────────────────┼────────────────┼────────┘
+            │                  │                │
+    ┌───────▼───────┐  ┌──────▼──────┐  ┌──────▼──────┐
+    │  AI Service   │  │   Speech    │  │    Both     │
+    │  (LangChain)  │  │   Service   │  │             │
+    └───────┬───────┘  └──────┬───────┘  └─────────────┘
+            │                 │
+     ┌──────┴──────┐    ┌─────┴─────┐
+     ▼             ▼    ▼           ▼
+┌─────────┐ ┌──────────┐ ┌─────────┐ ┌─────────┐
+│OpenRouter│ │PostgreSQL│ │Silicon- │ │Silicon- │
+│  (LLM)  │ │ pgvector │ │  Flow   │ │  Flow   │
+└─────────┘ └──────────┘ │  ASR    │ │  TTS    │
+                          │ + TTS   │ │(CosyVoice│
+                          └─────────┘ │2-0.5B)  │
+                                      └─────────┘
+                              ┌──────────────────┐
+                              │  统一语音平台     │
+                              │  Speech Service  │
+                              └──────────────────┘
 ```
+
+### 三明治架构 (Sandwich Architecture)
+
+本项目采用 LangChain 官方推荐的三明治架构模式：
+
+```
+用户语音 → ASR → LangChain (RAG) → TTS → 语音输出
+              ↑                        ↑
+         Speech Service           Speech Service
+```
+
+- **AI Service (LangChain)**: 只处理文本，专注 RAG
+- **Speech Service**: 独立处理音频，不依赖 LangChain
+- **API Server**: 作为协调层，编排语音和 AI 的调用
 
 ### 1. 前端服务 (Web Client)
 
@@ -93,6 +113,9 @@
 **核心接口**:
 
 - `GET /rag/stream?query=xxx` - 流式 RAG 问答接口
+- `POST /speech/asr` - 语音识别 (新增)
+- `POST /speech/tts` - 语音合成 (新增)
+- `GET /rag-tts/stream?query=xxx` - 流式 RAG + TTS (新增)
 
 ### 3. AI 服务 (AI Service)
 
@@ -122,6 +145,41 @@
 
 1. 文档导入 → 文本分割 → 向量化 (SiliconFlow) → 存储到 PostgreSQL
 2. 用户查询 → 向量检索 → 上下文构建 → LLM (OpenRouter) 生成回答
+
+### 4. 语音服务 (Speech Service) - 新增
+
+**位置**: `packages/speech-service`
+
+**技术栈**:
+
+- **SiliconFlow ASR** - 语音识别服务（FunAudioLLM/SenseVoiceSmall 模型）
+- **SiliconFlow TTS** - 语音合成服务（CosyVoice2-0.5B 模型）
+- **TypeScript** - 类型安全
+
+**主要功能**:
+
+- **ASR (语音识别)**: 将用户语音转换为文本
+- **TTS (语音合成)**: 将 AI 回答转换为语音，支持流式输出，边生成边播放
+- **流式处理**: 实时分句、队列播放、解码进度跟踪
+- **格式支持**: 前端直接录制 WAV 格式，避免格式转换问题
+
+**核心接口**:
+
+- `POST /speech/asr` - 语音识别
+- `POST /speech/tts` - 语音合成
+- `GET /rag-tts/stream` - 流式 RAG + TTS（边生成边朗读）
+
+**前端组件**:
+
+- `VoiceInput.tsx` - 语音输入按钮，支持录音和权限处理
+- `StreamAudioPlayer.tsx` - 流式音频播放器，支持队列和预缓冲
+
+**使用方式**:
+
+1. 点击麦克风按钮开始录音
+2. 系统自动识别语音并提交查询
+3. 开启 TTS 开关后，AI 回答会自动朗读
+4. 支持暂停/恢复播放
 
 ## 🛠️ 技术栈
 
@@ -197,11 +255,26 @@ OPENROUTER_MODEL=step-3.5-flash
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_TEMPERATURE=0.1
 
-# --- SiliconFlow 配置 (Embeddings) ---
+# --- SiliconFlow 配置 (Embeddings + ASR) ---
 SILICONFLOW_API_KEY=你的SiliconFlow_API_Key
 SILICONFLOW_EMBEDDING_MODEL=BAAI/bge-m3
 SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
+# --- ASR 语音识别配置 (新增) ---
+# 可选: siliconflow, openrouter, browser
+ASR_PROVIDER=siliconflow
+# SiliconFlow ASR 模型 (免费)
+ASR_MODEL=FunAudioLLM/SenseVoiceSmall
+
+# --- TTS 语音合成配置 (新增) ---
+# 当前仅支持: siliconflow
+TTS_PROVIDER=siliconflow
+# SiliconFlow TTS 模型 (推荐: CosyVoice2-0.5B)
+TTS_MODEL=FunAudioLLM/CosyVoice2-0.5B
+# TTS 音色 (siliconflow 支持多个音色，如: FunAudioLLM/CosyVoice2-0.5B:alex,  :sophia 等)
+TTS_VOICE=FunAudioLLM/CosyVoice2-0.5B:alex
+
+# --- 前端配置 ---
 # Nest.js API 后端实际运行的地址
 NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:3000
 ```
@@ -316,23 +389,50 @@ mipyao-ai-app-monorepo/
 │   ├── api-server/          # NestJS 后端服务
 │   │   ├── src/
 │   │   │   ├── rag/         # RAG 控制器和服务
+│   │   │   ├── speech/      # 语音服务模块 (新增)
 │   │   │   └── main.ts      # 应用入口
 │   │   └── package.json
 │   └── web-client/          # Next.js 前端应用
 │       ├── src/
 │       │   ├── app/         # Next.js App Router
-│       │   ├── components/   # React 组件
+│       │   ├── components/  # React 组件
+│       │   │   ├── VoiceInput.tsx       # 语音输入 (新增)
+│       │   │   ├── StreamAudioPlayer.tsx # 流式播放器 (新增)
+│       │   │   ├── Chat.tsx             # 主聊天组件
+│       │   │   ├── ChatMessage.tsx      # 消息展示
+│       │   │   └── WelcomeScreen.tsx    # 欢迎界面
+│       │   ├── api/         # API 调用
+│       │   │   ├── speech.ts            # 语音 API (新增)
+│       │   │   ├── rag-tts.ts           # RAG+TTS API (新增)
+│       │   │   └── index.ts
 │       │   └── lib/         # 工具函数
 │       └── package.json
 ├── packages/
-│   └── ai-service/          # RAG 核心服务包
+│   ├── ai-service/          # RAG 核心服务包
+│   │   ├── src/
+│   │   │   ├── rag.service.ts    # RAG 服务实现
+│   │   │   └── rag.config.ts     # 配置接口
+│   │   ├── data/            # 简历数据文件
+│   │   └── scripts/         # 数据导入和测试脚本
+│   └── speech-service/      # 语音服务包 (新增)
 │       ├── src/
-│       │   ├── rag.service.ts    # RAG 服务实现
-│       │   └── rag.config.ts     # 配置接口
-│       ├── data/            # 简历数据文件
-│       └── scripts/         # 数据导入和测试脚本
+│       │   ├── asr/         # ASR 语音识别
+│       │   │   ├── asr.interface.ts
+│       │   │   └── siliconflow.asr.ts
+│       │   ├── tts/         # TTS 语音合成
+│       │   │   ├── tts.interface.ts
+│       │   │   ├── edge.tts.ts
+│       │   │   └── siliconflow.tts.ts
+│       │   ├── stream/      # 流式处理工具
+│       │   │   ├── text-splitter.ts
+│       │   │   └── audio-buffer.ts
+│       │   ├── speech.config.ts    # 配置接口
+│       │   ├── speech.factory.ts   # 服务工厂
+│       │   └── index.ts
+│       └── package.json
 ├── image/                   # 项目截图
 ├── docker-compose.yaml      # PostgreSQL 容器配置
+├── .env.example             # 环境变量模板 (新增)
 ├── pnpm-workspace.yaml      # pnpm workspace 配置
 └── package.json            # 根 package.json
 ```
@@ -357,6 +457,51 @@ mipyao-ai-app-monorepo/
 ### API 文档
 
 启动 API 服务器后，访问 http://localhost:3000/api 查看 Swagger API 文档。
+
+## 🎤 语音功能使用指南 (新增)
+
+### 语音输入 (ASR)
+
+1. 点击输入框左侧的麦克风按钮
+2. 允许浏览器访问麦克风
+3. 对着麦克风说话（最长 60 秒）
+4. 点击停止按钮或等待自动停止
+5. 系统自动识别语音并提交查询
+
+**支持的 ASR 服务**:
+
+- **SiliconFlow** (默认): 免费，使用 SenseVoiceSmall 模型
+- **OpenRouter**: 复用现有 API Key
+
+### 语音朗读 (TTS)
+
+1. 点击右上角的音量图标开启 TTS
+2. TTS 开关状态会保存到 localStorage
+3. 开启后，AI 回答会自动朗读
+4. 支持暂停/恢复播放
+
+**支持的 TTS 服务**:
+
+- **Edge-TTS** (推荐): 完全免费，微软 Azure TTS 引擎
+- **SiliconFlow**: 使用 fish-speech 模型
+- **OpenRouter**: 复用现有 API Key
+
+### 流式 TTS
+
+系统支持边生成边朗读的流式 TTS：
+
+```
+LLM 生成文本 → 分句检测 → TTS 转换 → 实时播放
+     ↓              ↓           ↓           ↓
+   文本显示      句子分割     音频流      播放队列
+```
+
+### 降级处理
+
+- **麦克风权限被拒绝**: 显示提示，降级到文字输入
+- **ASR 失败**: 显示错误提示，可以重新录音或使用文字输入
+- **TTS 失败**: 跳过当前句子的朗读，继续显示文本
+- **TTS 关闭**: 仅显示文本，不播放语音
 
 ## 🐛 故障排除
 

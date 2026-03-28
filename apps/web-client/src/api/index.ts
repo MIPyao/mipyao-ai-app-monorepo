@@ -29,17 +29,13 @@ export const streamRagQuery = async (query: string): Promise<Response> => {
   return response;
 };
 
-// ----------------------------------------------------
-// (示例：未来您可以这样添加非流式请求)
-// ----------------------------------------------------
-/*
-export const getNewsList = async (): Promise<NewsItem[]> => {
-    const fullUrl = buildUrl('/api/news');
-    const response = await fetch(fullUrl);
-    
-    if (!response.ok) {
-        throw new Error('获取新闻列表失败');
-    }
-    return response.json();
-}
-*/
+// Speech API
+export {
+  recognizeSpeech,
+  synthesizeSpeech,
+  synthesizeSpeechStream,
+} from "./speech";
+
+// RAG-TTS API
+export { streamRagTtsQuery } from "./rag-tts";
+export type { RagTtsEvent, RagTtsEventCallback } from "./rag-tts";
