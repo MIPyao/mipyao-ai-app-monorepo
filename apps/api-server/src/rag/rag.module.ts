@@ -45,16 +45,19 @@ export const RAG_CONFIG_TOKEN = "RAG_CONFIG";
             infer: true,
           }),
         },
-        ollamaConfig: {
-          embeddingModel: configService.getOrThrow<string>(
-            "OLLAMA_EMBEDDING_MODEL",
-          ),
-          llmModel: configService.getOrThrow<string>("OLLAMA_LLM_MODEL"),
+        openrouterConfig: {
+          apiKey: configService.getOrThrow<string>("OPENROUTER_API_KEY"),
+          baseUrl: configService.getOrThrow<string>("OPENROUTER_BASE_URL"),
+          model: configService.getOrThrow<string>("OPENROUTER_MODEL"),
           temperature: parseFloat(
-            configService.getOrThrow<string>("OLLAMA_LLM_TEMPERATURE"),
+            configService.getOrThrow<string>("OPENROUTER_TEMPERATURE"),
           ),
-          repeatPenalty: parseFloat(
-            configService.getOrThrow<string>("OLLAMA_LLM_REPEAT_PENALTY"),
+        },
+        siliconflowConfig: {
+          apiKey: configService.getOrThrow<string>("SILICONFLOW_API_KEY"),
+          baseUrl: configService.getOrThrow<string>("SILICONFLOW_BASE_URL"),
+          embeddingModel: configService.getOrThrow<string>(
+            "SILICONFLOW_EMBEDDING_MODEL",
           ),
         },
       }),

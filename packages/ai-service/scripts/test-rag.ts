@@ -17,15 +17,24 @@ const getConfigFromEnv = (): RagConfig => ({
     tableName: process.env.POSTGRES_TABLE_NAME!,
     dimensions: parseInt(process.env.POSTGRES_DIMENSIONS!, 10),
   },
-  ollamaConfig: {
-    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL!,
-    llmModel: process.env.OLLAMA_LLM_MODEL!,
-    temperature: parseFloat(process.env.OLLAMA_LLM_TEMPERATURE!),
-    repeatPenalty: parseFloat(process.env.OLLAMA_LLM_REPEAT_PENALTY!),
+  openrouterConfig: {
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    baseUrl: process.env.OPENROUTER_BASE_URL!,
+    model: process.env.OPENROUTER_MODEL!,
+    temperature: parseFloat(process.env.OPENROUTER_TEMPERATURE!),
+  },
+  siliconflowConfig: {
+    apiKey: process.env.SILICONFLOW_API_KEY!,
+    baseUrl: process.env.SILICONFLOW_BASE_URL!,
+    embeddingModel: process.env.SILICONFLOW_EMBEDDING_MODEL!,
   },
 });
 
-async function testRagService(ragService: RagService, query: string) {
+async function testRagService(
+  ragService: RagService,
+  query: string,
+  retryOnQuota: boolean = false,
+) {
   console.log(`\n🗣️ 正在向 RAG Service 提问 (非流式): ${query}`);
 
   try {
@@ -35,9 +44,39 @@ async function testRagService(ragService: RagService, query: string) {
     console.log("------------------------------------------");
     console.log(answer.trim());
     console.log("------------------------------------------");
-  } catch (error) {
+  } catch (error: any) {
     console.error("\n❌ RAG Service 测试失败！");
-    console.error("错误详情:", error);
+
+    // 检查是否是配额错误
+    if (
+      error?.status === 429 ||
+      error?.isQuotaError ||
+      error?.message?.includes("429") ||
+      error?.message?.includes("quota")
+    ) {
+      const retryDelay = error?.retryDelay || 60; // 默认等待 60 秒
+
+      if (retryOnQuota && retryDelay > 0 && retryDelay < 300) {
+        // 如果重试延迟小于 5 分钟，可以选择自动重试
+        console.error(
+          `\n⏳ 检测到配额限制，将在 ${retryDelay} 秒后自动重试...`,
+        );
+        console.error("   (按 Ctrl+C 取消)");
+
+        await new Promise((resolve) => setTimeout(resolve, retryDelay * 1000));
+
+        console.log("\n🔄 开始重试...");
+        return testRagService(ragService, query, false); // 只重试一次
+      } else {
+        console.error("\n⚠️  配额错误详情:");
+        console.error(`   错误信息: ${error?.message || error}`);
+        if (retryDelay) {
+          console.error(`   建议等待时间: ${retryDelay} 秒`);
+        }
+      }
+    } else {
+      console.error("错误详情:", error);
+    }
   }
 }
 
@@ -76,8 +115,19 @@ async function testRAGStreaming(ragService: RagService, query: string) {
     console.log("\n\n------------------------------------------");
     console.log(`✅ 流式输出完成。总长度: ${fullResponse.length}`);
     console.log("------------------------------------------");
-  } catch (error) {
+  } catch (error: any) {
     console.error("\n❌ 流式测试失败:", error);
+
+    // 检查是否是配额错误
+    if (
+      error?.status === 429 ||
+      error?.isQuotaError ||
+      error?.message?.includes("429") ||
+      error?.message?.includes("quota")
+    ) {
+      const retryDelay = error?.retryDelay || 60;
+      console.error(`\n⚠️  配额限制错误。建议等待 ${retryDelay} 秒后重试。`);
+    }
   }
 }
 
@@ -88,7 +138,7 @@ async function main() {
   const config = getConfigFromEnv();
   console.log("--- RAG Service 独立测试开始 ---");
   console.log(
-    `💡 RAG配置加载成功，DB: ${config.dbConfig.database}, LLM: ${config.ollamaConfig.llmModel}`,
+    `💡 RAG配置加载成功，DB: ${config.dbConfig.database}, LLM: ${config.openrouterConfig.model}`,
   );
 
   // 实例化服务（只做一次）

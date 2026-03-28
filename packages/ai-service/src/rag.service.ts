@@ -1,5 +1,6 @@
 import { PGVectorStore } from "@langchain/community/vectorstores/pgvector";
-import { OllamaEmbeddings, Ollama } from "@langchain/ollama";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import { Document } from "@langchain/core/documents";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import {
@@ -78,7 +79,7 @@ export class RagService {
    */
   private async hybridRetrieve(
     query: string,
-    k: number = 3
+    k: number = 3,
   ): Promise<Document[]> {
     if (!this.vectorStore) {
       throw new Error("VectorStore 未初始化");
@@ -87,18 +88,23 @@ export class RagService {
     // 1. 向量相似度检索（获取更多候选，用于后续筛选）
     const vectorResults = await this.vectorStore.similaritySearchWithScore(
       query,
-      k * 2
+      k * 2,
     );
 
     // 2. 从查询中提取关键词，用于匹配 document_title 和 section_title
     const queryKeywords = this.extractQueryKeywords(query);
+    console.log(`   🔑 提取的关键词: ${queryKeywords.join(", ")}`);
 
     // 3. 计算每个文档的融合分数
-    const scoredDocs = vectorResults.map(([doc, score]) => {
+    // 注意：LangChain 返回的 score 是余弦距离（0=完全相同，距离越小越相似）
+    // 需要转换为相似度：(1 - distance) 使得分数越高越相似
+    const scoredDocs = vectorResults.map(([doc, distance]) => {
       const metadataScore = this.calculateMetadataScore(doc, queryKeywords);
+      // 将距离转换为相似度：距离越小，相似度越高
+      const vectorSimilarity = 1 - distance;
       // 融合分数：向量相似度 (0-1) * 0.6 + 元数据匹配分数 (0-1) * 0.4
-      const hybridScore = score * 0.6 + metadataScore * 0.4;
-      return { doc, score: hybridScore, vectorScore: score, metadataScore };
+      const hybridScore = vectorSimilarity * 0.6 + metadataScore * 0.4;
+      return { doc, score: hybridScore, vectorSimilarity, metadataScore };
     });
 
     // 4. 按融合分数排序并返回前 k 个
@@ -108,12 +114,12 @@ export class RagService {
       .map((item) => item.doc);
 
     console.log(
-      `🔍 融合检索完成: 向量检索 ${vectorResults.length} 个候选，返回前 ${k} 个`
+      `🔍 融合检索完成: 向量检索 ${vectorResults.length} 个候选，返回前 ${k} 个`,
     );
     if (scoredDocs.length > 0) {
       const top = scoredDocs[0];
       console.log(
-        `   最高分文档: ${top.doc.metadata?.document_title || "未知"} (向量: ${top.vectorScore.toFixed(3)}, 元数据: ${top.metadataScore.toFixed(3)}, 融合: ${top.score.toFixed(3)})`
+        `   最高分文档: ${top.doc.metadata?.document_title || "未知"} (向量: ${top.vectorSimilarity.toFixed(3)}, 元数据: ${top.metadataScore.toFixed(3)}, 融合: ${top.score.toFixed(3)})`,
       );
     }
 
@@ -143,7 +149,7 @@ export class RagService {
    */
   private calculateMetadataScore(
     doc: Document,
-    queryKeywords: string[]
+    queryKeywords: string[],
   ): number {
     if (queryKeywords.length === 0) return 0.5; // 如果没有关键词，给中等分数
 
@@ -177,10 +183,14 @@ export class RagService {
 
   private async initializeChain() {
     try {
-      const { dbConfig, ollamaConfig } = this.config;
-      // 1. 初始化嵌入模型
-      const embeddings = new OllamaEmbeddings({
-        model: ollamaConfig.embeddingModel,
+      const { dbConfig, openrouterConfig, siliconflowConfig } = this.config;
+      // 1. 初始化嵌入模型 (使用 SiliconFlow)
+      const embeddings = new OpenAIEmbeddings({
+        apiKey: siliconflowConfig.apiKey,
+        modelName: siliconflowConfig.embeddingModel,
+        configuration: {
+          baseURL: siliconflowConfig.baseUrl,
+        },
       });
 
       // 2. 连接到已有的 VectorStore
@@ -202,13 +212,19 @@ export class RagService {
         },
       };
 
-      // 4. 初始化 LLM，**修正为 Qwen-1.8B**
-      const llm = new Ollama({
-        model: ollamaConfig.llmModel,
-        temperature: ollamaConfig.temperature, // 降低温度，减少随机性，使其更倾向于事实性回答
-        repeatPenalty: ollamaConfig.repeatPenalty, // 重复惩罚因子。高于 1.0 会抑制模型重复自身的 token。
-        numPredict: 500, // 限制输出长度，防止无限重复
-      }); // 确保 Ollama 中模型名称是 qwen:1.8b
+      // 4. 初始化 LLM，使用 OpenRouter (兼容 OpenAI API)
+      console.log(
+        `🤖 正在初始化 LLM 模型: ${openrouterConfig.model} (via OpenRouter)`,
+      );
+      const llm = new ChatOpenAI({
+        apiKey: openrouterConfig.apiKey,
+        model: openrouterConfig.model,
+        temperature: openrouterConfig.temperature,
+        maxTokens: 3000,
+        configuration: {
+          baseURL: openrouterConfig.baseUrl,
+        },
+      });
 
       // 5. 创建 Prompt Template
       const prompt = PromptTemplate.fromTemplate(RAG_PROMPT_TEMPLATE);
@@ -239,11 +255,30 @@ export class RagService {
       ]);
 
       console.log("✅ RagService 链初始化完成，可以处理请求了。");
-    } catch (e) {
+    } catch (e: any) {
       console.error(
-        "❌ RagService 初始化失败。请检查 Ollama 和 PGVector 连接:",
-        e
+        "❌ RagService 初始化失败。请检查 OpenRouter/SiliconFlow API 和 PGVector 连接:",
       );
+
+      // 提供更友好的错误提示
+      if (e?.message?.includes("401") || e?.message?.includes("Unauthorized")) {
+        console.error("\n⚠️  API Key 错误！");
+        console.error(
+          "   请检查 .env 文件中的 OPENROUTER_API_KEY 或 SILICONFLOW_API_KEY 是否正确设置。",
+        );
+      } else if (
+        e?.message?.includes("404") ||
+        e?.message?.includes("not found")
+      ) {
+        console.error("\n⚠️  模型名称错误！");
+        console.error(
+          `   当前配置的模型: ${this.config.openrouterConfig.model}`,
+        );
+        console.error("   请检查 OpenRouter 上该模型是否可用。");
+      }
+
+      console.error("\n详细错误信息:", e?.message || e);
+      throw e; // 重新抛出错误，让调用者知道初始化失败
     }
   }
 
@@ -291,8 +326,25 @@ export class RagService {
       })();
 
       return readable;
-    } catch (e) {
+    } catch (e: any) {
       console.error("RAG 检索/生成失败:", e);
+
+      // 提供更友好的错误提示
+      if (e?.message?.includes("401") || e?.message?.includes("Unauthorized")) {
+        console.error("\n⚠️  API Key 错误！");
+        console.error(
+          "   请检查 .env 文件中的 OPENROUTER_API_KEY 是否正确设置。",
+        );
+      } else if (
+        e?.status === 429 ||
+        e?.message?.includes("429") ||
+        e?.message?.includes("quota") ||
+        e?.message?.includes("Quota exceeded")
+      ) {
+        console.error("\n⚠️  API 配额已用完（429 Too Many Requests）");
+        console.error("   请检查 OpenRouter 账户余额或免费额度。");
+      }
+
       throw new Error("AI 服务处理请求失败。");
     }
   }
@@ -320,9 +372,26 @@ export class RagService {
       });
 
       return result;
-    } catch (e) {
+    } catch (e: any) {
       console.error("RAG 检索/生成失败:", e);
-      throw new Error("AI 服务处理请求失败。请检查 Ollama 连接。");
+
+      // 提供更友好的错误提示
+      if (e?.message?.includes("401") || e?.message?.includes("Unauthorized")) {
+        console.error("\n⚠️  API Key 错误！");
+        console.error(
+          "   请检查 .env 文件中的 OPENROUTER_API_KEY 是否正确设置。",
+        );
+      } else if (
+        e?.status === 429 ||
+        e?.message?.includes("429") ||
+        e?.message?.includes("quota") ||
+        e?.message?.includes("Quota exceeded")
+      ) {
+        console.error("\n⚠️  API 配额已用完（429 Too Many Requests）");
+        console.error("   请检查 OpenRouter 账户余额或免费额度。");
+      }
+
+      throw new Error("AI 服务处理请求失败。请检查 OpenRouter API 连接。");
     }
   }
 }

@@ -8,10 +8,15 @@ export interface RagConfig {
     tableName: string;
     dimensions: number;
   };
-  ollamaConfig: {
-    embeddingModel: string;
-    llmModel: string;
+  openrouterConfig: {
+    apiKey: string;
+    baseUrl: string;
+    model: string;
     temperature: number;
-    repeatPenalty: number;
+  };
+  siliconflowConfig: {
+    apiKey: string;
+    baseUrl: string;
+    embeddingModel: string;
   };
 }
