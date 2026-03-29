@@ -35,6 +35,7 @@ export function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioPlayerRef = useRef<StreamAudioPlayerRef>(null);
+  const cancelRef = useRef<(() => void) | null>(null);
 
   // TTS 开关状态 - 初始值固定为 false，避免 hydration 错误
   const [ttsEnabled, setTtsEnabled] = useState(false);
@@ -74,6 +75,13 @@ export function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 组件卸载时清理 EventSource
+  useEffect(() => {
+    return () => {
+      cancelRef.current?.();
+    };
+  }, []);
 
   // 处理语音识别完成
   const handleVoiceInput = async (audioBlob: Blob) => {
@@ -259,7 +267,7 @@ export function Chat() {
 
     // 根据 TTS 开关选择不同的查询方式
     if (ttsEnabled) {
-      await handleSubmitWithTts(userInput);
+      cancelRef.current = await handleSubmitWithTts(userInput);
     } else {
       await handleSubmitWithoutTts(userInput);
     }

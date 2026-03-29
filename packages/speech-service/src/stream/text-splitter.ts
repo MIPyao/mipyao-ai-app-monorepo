@@ -20,9 +20,8 @@ export class TextSplitter {
   private buffer: string = "";
   private sentenceStart: number = 0;
 
-  // 分句符号：中文句号、问号、感叹号、换行符
-  // 英文句号后跟空格或换行
-  private static readonly SPLIT_PATTERN = /[。！？!?\n]/;
+  // 分句符号：中文句号、问号、感叹号、英文句号、换行符
+  private static readonly SPLIT_PATTERN = /[。！？.!?\n]/;
 
   /**
    * 添加文本块并返回完整的句子

@@ -482,8 +482,7 @@ mipyao-ai-app-monorepo/
 
 **支持的 TTS 服务**:
 
-- **Edge-TTS** (推荐): 完全免费，微软 Azure TTS 引擎
-- **SiliconFlow**: 使用 fish-speech 模型
+- **SiliconFlow**: 使用 CosyVoice2-0.5B 模型
 - **OpenRouter**: 复用现有 API Key
 
 ### 流式 TTS

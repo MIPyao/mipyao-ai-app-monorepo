@@ -78,7 +78,7 @@ LLM Stream (text chunks)
 **关键点**：
 
 - 后端需要同时消费 LLM 文本流和生产 TTS 音频流
-- 使用 SSE (Server-Sent Events) 或 WebSocket 实现双向流
+- 使用 SSE (Server-Sent Events) 实现 server→client 单向流
 - 前端需要音频缓冲队列，确保播放连续性
 
 ### 2. TTS 服务选型：Edge-TTS（推荐）
@@ -122,7 +122,7 @@ LLM Stream (text chunks)
 **方案 A：SSE + 后端流式处理（推荐）**
 
 ```
-前端 POST /rag/stream-with-tts
+前端 GET /rag-tts/stream
     ↓
 后端接收查询
     ↓
