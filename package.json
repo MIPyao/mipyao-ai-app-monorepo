@@ -15,7 +15,8 @@
     "lint:api": "oxlint apps/api-server",
     "lint:web": "oxlint apps/web-client",
     "lint:ai": "oxlint packages/ai-service",
-    "lint": "npm run lint:api && npm run lint:web && npm run lint:ai"
+    "lint:speech": "oxlint packages/speech-service",
+    "lint": "npm run lint:api && npm run lint:web && npm run lint:ai && npm run lint:speech"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,3 @@
 {
-  "extends": "./tsconfig.build.json",
-  "compilerOptions": {
-    "types": ["node"]
-  }
+  "extends": "./tsconfig.build.json"
 }

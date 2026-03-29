@@ -4,7 +4,6 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import {
   SpeechServiceFactory,
   IAsrService,
@@ -12,7 +11,6 @@ import {
   SpeechConfig,
   loadSpeechConfig,
 } from "@mipyao/speech-service";
-import { Readable } from "stream";
 
 @Injectable()
 export class SpeechService {
@@ -20,7 +18,7 @@ export class SpeechService {
   private asrService: IAsrService;
   private ttsService: ITtsService;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor() {
     // 从环境变量加载配置
     const config = loadSpeechConfig();
 
