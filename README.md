@@ -226,7 +226,7 @@
 
 1. 访问 [OpenRouter](https://openrouter.ai/) 注册账号
 2. 在 Dashboard 获取 API Key
-3. 免费模型推荐: `step-3.5-flash`
+3. 免费模型推荐: `stepfun/step-3.5-flash:free`
 
 #### SiliconFlow (免费嵌入)
 
@@ -251,7 +251,7 @@ POSTGRES_DIMENSIONS=1024
 
 # --- OpenRouter 配置 (LLM) ---
 OPENROUTER_API_KEY=你的OpenRouter_API_Key
-OPENROUTER_MODEL=step-3.5-flash
+OPENROUTER_MODEL=stepfun/step-3.5-flash:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_TEMPERATURE=0.1
 
