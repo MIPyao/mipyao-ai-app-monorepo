@@ -31,7 +31,12 @@ export interface SpeechConfig {
 }
 
 /**
- * 从环境变量加载配置
+ * Load speech service configuration from environment variables.
+ *
+ * Environment variables used include ASR_PROVIDER, SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL,
+ * ASR_MODEL, TTS_PROVIDER, TTS_MODEL, and TTS_VOICE. Missing values are filled with sensible defaults.
+ *
+ * @returns A `SpeechConfig` populated from environment variables. Missing values default to provider `"siliconflow"`, baseUrl `"https://api.siliconflow.cn/v1"`, ASR model `"FunAudioLLM/SenseVoiceSmall"`, TTS model `"FunAudioLLM/CosyVoice2-0.5B"`, and TTS voice `"FunAudioLLM/CosyVoice2-0.5B:alex"`.
  */
 export function loadSpeechConfig(): SpeechConfig {
   return {
