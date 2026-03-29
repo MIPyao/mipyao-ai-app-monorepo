@@ -161,6 +161,15 @@ class AudioRecorder {
   }
 }
 
+/**
+ * Renders a voice recording input that captures microphone audio and returns a WAV `Blob` when recording stops.
+ *
+ * The component manages recording state, displays a toggle button and a status indicator with recording duration, requests microphone permission when starting, and stops automatically after 60 seconds.
+ *
+ * @param onRecordingComplete - Callback invoked with the recorded audio as a WAV `Blob` after recording stops
+ * @param disabled - When `true`, disables the control and prevents starting or stopping recordings
+ * @returns The VoiceInput component UI: a toggle button for recording, a status indicator (recording duration or permission denied), and an optional hint when idle
+ */
 export function VoiceInput({
   onRecordingComplete,
   disabled = false,

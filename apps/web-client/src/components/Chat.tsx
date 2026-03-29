@@ -19,6 +19,13 @@ const decoder = new TextDecoder("utf-8");
 // TTS 开关的 localStorage key
 const TTS_ENABLED_KEY = "tts-enabled";
 
+/**
+ * Renders the chat user interface for RAG-based conversations with optional voice input and text-to-speech playback.
+ *
+ * The component manages message state, streaming queries (RAG with or without TTS), voice recognition, an audio stream player, TTS toggle persisted to localStorage, optimistic UI updates for user/assistant messages, auto-scrolling, and controls for clearing the conversation.
+ *
+ * @returns The chat UI as a JSX element.
+ */
 export function Chat() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
