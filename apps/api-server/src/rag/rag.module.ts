@@ -3,10 +3,13 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import * as path from "path";
 
 import { RagController } from "./rag.controller";
+import { RagTtsController } from "./rag-tts.controller";
 // 引入本地封装的 RagService (它会负责注入 CoreRagService)
 import { RagService } from "./rag.service";
 // 引入核心库的 RagService 和 RagConfig
 import { RagService as CoreRagService, RagConfig } from "@mipyao/ai-service";
+// 引入 SpeechModule 以使用 SpeechService
+import { SpeechModule } from "../speech/speech.module";
 
 // ----------------------------------------------------
 // 1. 定义 Custom Provider Token
@@ -21,8 +24,10 @@ export const RAG_CONFIG_TOKEN = "RAG_CONFIG";
       isGlobal: true,
       envFilePath: [path.resolve(__dirname, "..", "..", "..", "..", ".env")],
     }),
+    // 导入 SpeechModule 以使用 SpeechService
+    SpeechModule,
   ],
-  controllers: [RagController],
+  controllers: [RagController, RagTtsController],
   providers: [
     // ----------------------------------------------------
     // 2. Custom Provider: 组装 RagConfig 对象

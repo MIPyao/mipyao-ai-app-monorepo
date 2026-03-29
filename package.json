@@ -1,10 +1,10 @@
 {
   "name": "mipyao-ai-app-monorepo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一个基于 RAG (检索增强生成) 技术的智能简历问答系统，使用 Next.js、NestJS 和 LangChain.js 构建。",
   "main": "index.js",
   "scripts": {
-    "build:libs": "pnpm --filter \"@mipyao/ai-service\" run build",
+    "build:libs": "pnpm --filter \"@mipyao/ai-service\" --filter \"@mipyao/speech-service\" run build",
     "build:apps": "pnpm --filter \"@mipyao/api-server\" --filter \"@mipyao/web-client\" run build",
     "build:all": "pnpm --filter \"@mipyao/*\" run build",
     "dev": "pnpm build:libs && pnpm --parallel --stream -r run start:dev",
@@ -15,7 +15,8 @@
     "lint:api": "oxlint apps/api-server",
     "lint:web": "oxlint apps/web-client",
     "lint:ai": "oxlint packages/ai-service",
-    "lint": "npm run lint:api && npm run lint:web && npm run lint:ai"
+    "lint:speech": "oxlint packages/speech-service",
+    "lint": "npm run lint:api && npm run lint:web && npm run lint:ai && npm run lint:speech"
   },
   "keywords": [],
   "author": "",
