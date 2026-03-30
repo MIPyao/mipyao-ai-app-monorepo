@@ -204,11 +204,25 @@ export function VoiceInput({
     };
   }, [cleanup]);
 
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current) {
+      try {
+        const wavBlob = recorderRef.current.stop();
+        onRecordingComplete(wavBlob);
+      } catch (error) {
+        console.error("停止录音失败:", error);
+      }
+      recorderRef.current = null;
+    }
+    cleanup();
+    setStatus("idle");
+  }, [onRecordingComplete, cleanup]);
+
   useEffect(() => {
     if (status === "recording" && duration >= 60) {
       stopRecording();
     }
-  }, [duration, status]);
+  }, [duration, status, stopRecording]);
 
   const startRecording = async () => {
     try {
@@ -226,20 +240,6 @@ export function VoiceInput({
       console.error("请求麦克风权限失败:", error);
       setStatus("denied");
     }
-  };
-
-  const stopRecording = () => {
-    if (recorderRef.current) {
-      try {
-        const wavBlob = recorderRef.current.stop();
-        onRecordingComplete(wavBlob);
-      } catch (error) {
-        console.error("停止录音失败:", error);
-      }
-      recorderRef.current = null;
-    }
-    cleanup();
-    setStatus("idle");
   };
 
   const handleToggleRecording = () => {

@@ -152,10 +152,10 @@ export const StreamAudioPlayer = forwardRef<
     };
 
     source.onended = handleEnded;
-    source.onerror = (e) => {
+    source.addEventListener("error", (e: Event) => {
       console.error("[StreamAudioPlayer] Source error:", e);
       handleEnded();
-    };
+    });
 
     currentSourceRef.current = source;
     isPlayingRef.current = true;
