@@ -31,65 +31,61 @@ export function ChatMessage({ message }: ChatMessageProps) {
       >
         {/* 头像 */}
         <div
-          className={`shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-sm border ${
+          className={`shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-sm border transition-colors ${
             isUser
-              ? "bg-indigo-100 border-indigo-200"
-              : "bg-white border-gray-200"
+              ? "bg-primary-100 border-primary-200"
+              : "bg-surface border-border"
           }`}
         >
           {isUser ? (
-            <User className="w-5 h-5 text-indigo-600" />
+            <User className="w-5 h-5 text-primary-600" />
           ) : (
-            <Bot className="w-5 h-5 text-emerald-600" />
+            <Bot className="w-5 h-5 text-accent" />
           )}
         </div>
 
         {/* 气泡 */}
         <div
-          className={`relative px-5 py-3.5 shadow-sm text-sm md:text-base leading-relaxed ${
+          className={`relative px-5 py-3.5 shadow-sm text-sm md:text-base leading-relaxed transition-shadow hover:shadow-md ${
             isUser
-              ? "bg-linear-to-br from-indigo-600 to-blue-600 text-white rounded-2xl rounded-tr-sm"
-              : "bg-white border border-gray-100 text-slate-800 rounded-2xl rounded-tl-sm"
+              ? "bg-primary text-white rounded-2xl rounded-tr-sm"
+              : message.isError
+                ? "bg-error-light border border-error/20 text-text-primary rounded-2xl rounded-tl-sm"
+                : "bg-surface border border-border text-text-primary rounded-2xl rounded-tl-sm"
           }`}
         >
           {/* 内容 */}
-          <div className="font-normal tracking-wide prose prose-sm max-w-none">
+          <div className="font-normal tracking-wide prose prose-sm max-w-none prose-p:text-inherit prose-headings:text-inherit prose-strong:text-inherit prose-a:text-primary-600">
             {message.content ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                // 核心渲染内容
-                // 使用 components 属性可以定制 Markdown 渲染的 HTML 元素样式
                 components={{
-                  // 示例：定制列表样式 (可选)
                   ul: ({ node: _node, ...props }) => (
                     <ul className="list-disc pl-5 my-2" {...props} />
                   ),
                   ol: ({ node: _node, ...props }) => (
                     <ol className="list-decimal pl-5 my-2" {...props} />
                   ),
-                  // 示例：定制段落样式 (可选)
                   p: ({ node: _node, ...props }) => (
                     <p className="mb-2 last:mb-0" {...props} />
                   ),
-                  // 更多定制，如 h1, h2, pre/code 等
                 }}
               >
                 {message.content}
               </ReactMarkdown>
             ) : (
-              // 处理空内容时的闪烁光标效果
               !isUser && (
-                <span className="inline-block w-2 h-4 align-middle bg-slate-400 animate-pulse ml-1"></span>
+                <span className="inline-block w-2 h-4 align-middle bg-text-muted/40 animate-pulse ml-1"></span>
               )
             )}
           </div>
 
-          {/* 操作按钮 (仅 AI 消息显示) */}
-          {!isUser && (
+          {/* 操作按钮 */}
+          {!isUser && !message.isError && (
             <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-2 pt-1">
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
                 title="复制内容"
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
