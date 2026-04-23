@@ -1,34 +1,81 @@
 @import "tailwindcss";
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 248, 250, 252;
-  --background-end-rgb: 248, 250, 252;
+@theme {
+  /* === 字体 === */
+  --font-sans: "Albert Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* === 主色：暖琥珀色（Claude.ai 风格） === */
+  --color-primary: oklch(0.65 0.18 85);
+  --color-primary-light: oklch(0.85 0.08 85);
+  --color-primary-dark: oklch(0.50 0.18 85);
+  --color-primary-50: oklch(0.98 0.02 85);
+  --color-primary-100: oklch(0.95 0.04 85);
+  --color-primary-200: oklch(0.88 0.08 85);
+  --color-primary-500: oklch(0.65 0.18 85);
+  --color-primary-600: oklch(0.58 0.18 85);
+  --color-primary-700: oklch(0.52 0.18 85);
+
+  /* === 背景 === */
+  --color-surface: oklch(1 0 0);
+  --color-bg: oklch(0.98 0.005 85);
+
+  /* === 文字 === */
+  --color-text-primary: oklch(0.18 0.01 75);
+  --color-text-secondary: oklch(0.45 0.01 75);
+  --color-text-muted: oklch(0.60 0.01 75);
+
+  /* === 边框 === */
+  --color-border: oklch(0.92 0.01 85);
+  --color-border-light: oklch(0.96 0.005 85);
+
+  /* === 强调色：青绿（小面积）=== */
+  --color-accent: oklch(0.55 0.12 180);
+  --color-accent-light: oklch(0.96 0.03 180);
+
+  /* === 功能色 === */
+  --color-error: oklch(0.55 0.18 25);
+  --color-error-light: oklch(0.97 0.03 25);
+  --color-success: oklch(0.55 0.10 160);
+  --color-success-light: oklch(0.97 0.03 160);
+
+  /* === 阴影（oklch 暗色透明白）=== */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.05);
+  --shadow-md: 0 4px 8px oklch(0 0 0 / 0.07);
+  --shadow-lg: 0 8px 16px oklch(0 0 0 / 0.09);
+  --shadow-xl: 0 12px 32px oklch(0 0 0 / 0.10);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-start-rgb));
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 自定义滚动条样式 */
+/* 自定义滚动条 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: oklch(0.80 0.01 85);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: oklch(0.70 0.01 85);
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
   }
 }
