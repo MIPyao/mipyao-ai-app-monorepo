@@ -221,6 +221,7 @@ export class RagService {
         model: openrouterConfig.model,
         temperature: openrouterConfig.temperature,
         maxTokens: 3000,
+        streamUsage: false,
         configuration: {
           baseURL: openrouterConfig.baseUrl,
         },
