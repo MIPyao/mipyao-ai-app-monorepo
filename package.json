@@ -27,7 +27,14 @@
       "openai": "6.10.0",
       "zod": "4.1.13",
       "dotenv": "17.2.3"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@scarf/scarf",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
