@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Mic, MicOff, Circle, Square } from "lucide-react";
+import { Mic, MicOff, Square } from "lucide-react";
 
 interface VoiceInputProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -55,7 +55,9 @@ class AudioRecorder {
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
     }
-    if (this.audioContext) this.audioContext.close();
+    if (this.audioContext) {
+      void this.audioContext.close().catch(() => {});
+    }
 
     const totalLength = this.recordedData.reduce((sum, arr) => sum + arr.length, 0);
     const mergedData = new Float32Array(totalLength);
@@ -118,12 +120,6 @@ export function VoiceInput({
   const [duration, setDuration] = useState(0);
   const recorderRef = useRef<AudioRecorder | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
@@ -201,7 +197,6 @@ export function VoiceInput({
     return <Mic className="w-5 h-5" />;
   };
 
-  
   return (
     <div className="flex flex-col items-center gap-2">
       <button
@@ -226,7 +221,6 @@ export function VoiceInput({
       >
         {renderButtonContent()}
       </button>
-
-      </div>
+    </div>
   );
 }

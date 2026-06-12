@@ -54,16 +54,24 @@ export function Chat() {
     setTtsEnabled((prev) => !prev);
   }, []);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     const container = messagesContainerRef.current;
     if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTo({ top: container.scrollHeight, behavior });
     }
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    if (distanceFromBottom < 160) {
+      scrollToBottom(isLoading ? "auto" : "smooth");
+    }
+  }, [messages, isLoading]);
 
   useEffect(() => {
     return () => {

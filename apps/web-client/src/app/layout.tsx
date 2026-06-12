@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Outfit, Albert_Sans } from "next/font/google";
+import { Outfit, Albert_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -10,6 +10,12 @@ const outfit = Outfit({
 
 const albertSans = Albert_Sans({
   variable: "--font-albert",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
   weight: ["400", "500"],
 });
@@ -26,14 +32,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body
-        className={`${outfit.variable} ${albertSans.variable} font-sans antialiased`}
+        className={`${outfit.variable} ${albertSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}
       >
         {children}
       </body>

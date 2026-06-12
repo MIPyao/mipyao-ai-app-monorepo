@@ -2,9 +2,9 @@
 
 @theme {
   /* === 字体 === */
-  --font-sans: "Albert Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: var(--font-albert, "Albert Sans", ui-sans-serif, system-ui, sans-serif);
+  --font-heading: var(--font-outfit, "Outfit", ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-ibm-plex-mono, "IBM Plex Mono", ui-monospace, monospace);
 
   /* === 主色：暖琥珀色（Claude.ai 风格） === */
   --color-primary: oklch(0.65 0.18 85);
@@ -71,11 +71,10 @@ body {
   background: oklch(0.70 0.01 85);
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-  .text-pretty {
-    text-wrap: pretty;
-  }
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@utility text-pretty {
+  text-wrap: pretty;
 }

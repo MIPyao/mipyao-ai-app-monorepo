@@ -55,7 +55,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
           }`}
         >
           {/* 内容 */}
-          <div className="font-normal tracking-wide prose prose-sm max-w-none prose-p:text-inherit prose-headings:text-inherit prose-strong:text-inherit prose-a:text-primary-600">
+          <div className={`font-normal tracking-wide prose prose-sm max-w-none prose-p:text-inherit prose-headings:text-inherit prose-strong:text-inherit ${
+            isUser
+              ? "prose-a:text-white prose-a:underline"
+              : "prose-a:text-primary-600"
+          }`}>
             {message.content ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
