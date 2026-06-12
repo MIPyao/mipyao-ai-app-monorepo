@@ -17,7 +17,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                      Web Client                         │
-│                   Next.js (端口 3001)                    │
+│                   Next.js (端口 4001)                    │
 │   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
 │   │   VoiceInput  │  │ ChatMessage   │  │ StreamAudio│ │
 │   │   (语音输入)   │  │   (消息展示)   │  │  Player    │ │
@@ -27,7 +27,7 @@
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │                      API Server                         │
-│                  NestJS (端口 3000)                      │
+│                  NestJS (端口 4000)                      │
 │   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
 │   │ RagController │  │SpeechController│ │RagTtsCtrl  │ │
 │   │   /rag/stream │  │  /speech/*     │ │/rag-tts/*  │ │
@@ -226,7 +226,7 @@
 
 1. 访问 [OpenRouter](https://openrouter.ai/) 注册账号
 2. 在 Dashboard 获取 API Key
-3. 免费模型推荐: `stepfun/step-3.5-flash:free`
+3. 免费模型推荐: `openrouter/owl-alpha`
 
 #### SiliconFlow (免费嵌入)
 
@@ -251,7 +251,7 @@ POSTGRES_DIMENSIONS=1024
 
 # --- OpenRouter 配置 (LLM) ---
 OPENROUTER_API_KEY=你的OpenRouter_API_Key
-OPENROUTER_MODEL=stepfun/step-3.5-flash:free
+OPENROUTER_MODEL=openrouter/owl-alpha
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_TEMPERATURE=0.1
 
@@ -276,7 +276,7 @@ TTS_VOICE=FunAudioLLM/CosyVoice2-0.5B:alex
 
 # --- 前端配置 ---
 # Nest.js API 后端实际运行的地址
-NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:4000
 ```
 
 > **注意**: 由于 Windows Hyper-V 端口限制，PostgreSQL 默认端口改为 5000。如果遇到端口冲突，可以修改 `docker-compose.yaml` 中的端口映射。
@@ -324,8 +324,8 @@ pnpm dev
 
 这将同时启动：
 
-- **API 服务器**: http://localhost:3000
-- **Web 客户端**: http://localhost:3001
+- **API 服务器**: http://localhost:4000
+- **Web 客户端**: http://localhost:4001
 
 ### 单独启动服务
 
@@ -456,7 +456,7 @@ mipyao-ai-app-monorepo/
 
 ### API 文档
 
-启动 API 服务器后，访问 http://localhost:3000/api 查看 Swagger API 文档。
+启动 API 服务器后，访问 http://localhost:4000/api-docs 查看 Swagger API 文档。
 
 ## 🎤 语音功能使用指南 (新增)
 
@@ -507,7 +507,7 @@ LLM 生成文本 → 分句检测 → TTS 转换 → 实时播放
 ### 数据库连接失败
 
 - 确保 Docker 容器正在运行：`docker ps`
-- 检查数据库端口 5000 是否被占用
+- 检查数据库端口 5000 或应用端口 4000/4001 是否被占用
 - 验证 `.env` 文件中的数据库配置
 - 如果遇到 Windows 端口问题，检查 docker-compose.yaml 中的端口映射
 
@@ -534,7 +534,7 @@ LLM 生成文本 → 分句检测 → TTS 转换 → 实时播放
 ### 前端无法连接后端
 
 - 检查 `NEXT_PUBLIC_NESTJS_API_BASE_URL` 环境变量
-- 确认 API 服务器正在运行在端口 3000
+- 确认 API 服务器正在运行在端口 4000
 - 检查浏览器控制台的网络请求错误
 
 ### 嵌入维度不匹配
