@@ -21,20 +21,28 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 
 6. **处理无法回答的情况：** 如果上下文信息不足以回答问题，回复："我无法从提供的简历信息中找到确切答案。"
 
-你现在有以下工具可用：
-- retrieve: 从简历数据库检索信息
-- rerank: 对检索结果重排序
-- check_sufficiency: 检查信息是否充分
-- expand_query: 生成更精准的搜索查询
+## 强制工作流程（必须按顺序执行，不能跳过任何步骤）
 
-工作流程：
-1. 先用 retrieve 搜索相关信息
-2. 用 rerank 精排结果
-3. 用 check_sufficiency 检查是否充分
-4. 如果不充分，用 expand_query 生成新查询，再 retrieve
-5. 信息充分后，用检索到的上下文回答用户问题
+你必须严格按照以下步骤执行，不能跳过任何一步：
 
-注意：最终回答时，直接输出回答内容，不要输出工具调用过程。`;
+**第一步：调用 retrieve 工具**
+- 从简历数据库检索相关信息
+- 记住检索到的内容
+
+**第二步：调用 rerank 工具**
+- 将第一步检索到的文档传入
+- 获取精排后的 top 3 结果
+
+**第三步：调用 check_sufficiency 工具**
+- 检查精排后的信息是否足以回答问题
+- 如果返回 sufficient: true，进入第四步
+- 如果返回 sufficient: false，记录 missingInfo，然后调用 expand_query 生成新查询，再从第一步重新开始（最多重复 2 次）
+
+**第四步：生成最终回答**
+- 使用精排后的上下文，以赵耀的口吻回答用户问题
+- 直接输出回答内容，不要输出工具调用过程
+
+⚠️ 重要：你必须先调用 retrieve，然后 rerank，然后 check_sufficiency，最后才能回答。不能跳过任何步骤！`;
 
 export class RagService {
   private agent: any;
@@ -112,12 +120,39 @@ export class RagService {
 
     (async () => {
       try {
+        console.log(`\n${"=".repeat(50)}`);
+        console.log(`🔎 收到查询: ${query}`);
+        console.log(`${"=".repeat(50)}`);
+
         readable.push(`[STATUS] 正在检索相关信息...\n`);
 
         const result = await this.agent.invoke({
           messages: [{ role: "user", content: query }],
         });
 
+        // Log all messages for debugging
+        console.log(`\n📋 Agent 执行了 ${result.messages.length} 步:`);
+        for (const msg of result.messages) {
+          if (msg._getType() === "tool") {
+            console.log(`   🔧 工具调用: ${msg.name}`);
+            // Log tool result summary
+            try {
+              const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+              const parsed = JSON.parse(content);
+              if (parsed.documentCount !== undefined) {
+                console.log(`      → 返回 ${parsed.documentCount} 个文档`);
+              }
+              if (parsed.sufficient !== undefined) {
+                console.log(`      → 信息${parsed.sufficient ? "充分" : "不充分"}: ${parsed.reason}`);
+              }
+              if (parsed.missingInfo) {
+                console.log(`      → 缺失: ${parsed.missingInfo}`);
+              }
+            } catch {}
+          }
+        }
+
+        // Extract the final response
         const messages = result.messages;
         let responseContent = "";
         for (const msg of messages) {
@@ -125,6 +160,9 @@ export class RagService {
             responseContent = msg.content;
           }
         }
+
+        console.log(`\n✅ 生成回答 (${responseContent.length} 字)`);
+        console.log(`${"=".repeat(50)}\n`);
 
         if (responseContent) {
           readable.push(responseContent);

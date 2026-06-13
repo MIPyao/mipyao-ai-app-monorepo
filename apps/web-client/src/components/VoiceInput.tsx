@@ -200,6 +200,7 @@ export function VoiceInput({
   return (
     <div className="flex flex-col items-center gap-2">
       <button
+        type="button"
         onClick={handleToggleRecording}
         disabled={disabled}
         className={`p-3 rounded-lg flex items-center justify-center transition-all duration-200 ${

@@ -42,7 +42,9 @@ export function createAgentTools(
 
   const retrieveTool = tool(
     async ({ query }) => {
+      console.log(`   🔍 [retrieve] 搜索: "${query}"`);
       const docs = await hybridRetrieve(query, 6);
+      console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档`);
       const context = docs
         .map((doc) => {
           const title = doc.metadata?.document_title || "";
@@ -71,12 +73,14 @@ export function createAgentTools(
 
   const rerankTool = tool(
     async ({ query, context }) => {
+      console.log(`   🎯 [rerank] 对 ${context.split("\n\n").length} 个文档重排序`);
       const docs = context
         .split("\n\n")
         .filter(Boolean)
         .map((text) => new Document({ pageContent: text }));
 
       const reranked = await reranker.rerank(query, docs, 3);
+      console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档`);
       const rerankedContext = reranked.map((d) => d.pageContent).join("\n\n");
 
       return JSON.stringify({
@@ -97,7 +101,9 @@ export function createAgentTools(
 
   const checkTool = tool(
     async ({ query, context }) => {
+      console.log(`   🔎 [check] 检查信息充分性...`);
       const result = await checker.check(query, context);
+      console.log(`   📊 [check] 结果: ${result.sufficient ? "✅ 充分" : "❌ 不充分 - " + result.missingInfo}`);
       return JSON.stringify(result);
     },
     {
@@ -113,7 +119,9 @@ export function createAgentTools(
 
   const expandTool = tool(
     async ({ query, missingInfo, foundInfo }) => {
+      console.log(`   🔄 [expand] 生成新查询 (缺失: ${missingInfo})`);
       const expandedQuery = await expander.expand(query, missingInfo, foundInfo);
+      console.log(`   🔄 [expand] 新查询: "${expandedQuery}"`);
       return JSON.stringify({ expandedQuery });
     },
     {
