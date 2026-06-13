@@ -169,7 +169,10 @@ SILICONFLOW_RERANK_MODEL=BAAI/bge-reranker-v2-m3
 ```typescript
 export interface RagConfig {
   // ... 现有配置
-  rerankModel: string;  // 新增
+  siliconflowConfig: {
+    // ... 现有配置
+    rerankModel: string;  // 新增
+  };
 }
 ```
 
