@@ -38,8 +38,9 @@ export class SufficiencyChecker {
         ? response.content
         : JSON.stringify(response.content);
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Find first complete JSON object by brace counting
+    const startIdx = content.indexOf("{");
+    if (startIdx === -1) {
       return {
         sufficient: false,
         missingInfo: "无法解析检查结果",
@@ -47,8 +48,21 @@ export class SufficiencyChecker {
       };
     }
 
+    let braceCount = 0;
+    let endIdx = startIdx;
+    for (let i = startIdx; i < content.length; i++) {
+      if (content[i] === "{") braceCount++;
+      if (content[i] === "}") braceCount--;
+      if (braceCount === 0) {
+        endIdx = i;
+        break;
+      }
+    }
+
+    const jsonStr = content.substring(startIdx, endIdx + 1);
+
     try {
-      const result = JSON.parse(jsonMatch[0]);
+      const result = JSON.parse(jsonStr);
       return {
         sufficient: Boolean(result.sufficient),
         missingInfo: result.missingInfo || "",
