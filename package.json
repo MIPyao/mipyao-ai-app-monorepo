@@ -1,6 +1,6 @@
 {
   "name": "mipyao-ai-app-monorepo",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "一个基于 RAG (检索增强生成) 技术的智能简历问答系统，使用 Next.js、NestJS 和 LangChain.js 构建。",
   "main": "index.js",
   "scripts": {
