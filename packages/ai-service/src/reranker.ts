@@ -53,10 +53,21 @@ export class SiliconFlowReranker {
       throw new Error(`Rerank API failed: ${response.status} - ${error}`);
     }
 
-    const data: RerankResponse = await response.json();
+    const data = await response.json();
+
+    if (!data?.results || !Array.isArray(data.results)) {
+      throw new Error("Invalid rerank response: missing results array");
+    }
 
     return data.results
-      .sort((a, b) => b.relevance_score - a.relevance_score)
-      .map((r) => documents[r.index]);
+      .filter((r: RerankResult) => {
+        if (typeof r.index !== "number" || r.index < 0 || r.index >= documents.length) {
+          console.warn(`[Reranker] Invalid index: ${r.index}, skipping`);
+          return false;
+        }
+        return true;
+      })
+      .sort((a: RerankResult, b: RerankResult) => b.relevance_score - a.relevance_score)
+      .map((r: RerankResult) => documents[r.index]);
   }
 }

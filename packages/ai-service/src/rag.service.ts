@@ -124,38 +124,33 @@ export class RagService {
         console.log(`🔎 收到查询: ${query}`);
         console.log(`${"=".repeat(50)}`);
 
-        readable.push(`[STATUS] 正在检索相关信息...\n`);
+        const statusMap: Record<string, string> = {
+          retrieve: "正在检索相关信息...",
+          rerank: "正在精排文档...",
+          check_sufficiency: "正在检查信息充分性...",
+          expand_query: "正在扩展查询...",
+        };
 
-        const result = await this.agent.invoke({
+        let allMessages: any[] = [];
+
+        for await (const chunk of await this.agent.stream({
           messages: [{ role: "user", content: query }],
-        });
-
-        // Log all messages for debugging
-        console.log(`\n📋 Agent 执行了 ${result.messages.length} 步:`);
-        for (const msg of result.messages) {
-          if (msg._getType() === "tool") {
-            console.log(`   🔧 工具调用: ${msg.name}`);
-            // Log tool result summary
-            try {
-              const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-              const parsed = JSON.parse(content);
-              if (parsed.documentCount !== undefined) {
-                console.log(`      → 返回 ${parsed.documentCount} 个文档`);
-              }
-              if (parsed.sufficient !== undefined) {
-                console.log(`      → 信息${parsed.sufficient ? "充分" : "不充分"}: ${parsed.reason}`);
-              }
-              if (parsed.missingInfo) {
-                console.log(`      → 缺失: ${parsed.missingInfo}`);
-              }
-            } catch {}
+        })) {
+          if (chunk.agent?.messages) {
+            allMessages = chunk.agent.messages;
+            const lastMsg = allMessages[allMessages.length - 1];
+            if (lastMsg._getType() === "ai" && lastMsg.tool_calls?.length) {
+              const toolName = lastMsg.tool_calls[0].name;
+              const status = statusMap[toolName] || `正在执行 ${toolName}...`;
+              readable.push(`[STATUS] ${status}\n`);
+              console.log(`   🔧 工具调用: ${toolName}`);
+            }
           }
         }
 
         // Extract the final response
-        const messages = result.messages;
         let responseContent = "";
-        for (const msg of messages) {
+        for (const msg of allMessages) {
           if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
             responseContent = msg.content;
           }

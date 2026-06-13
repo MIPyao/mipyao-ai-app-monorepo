@@ -45,20 +45,13 @@ export function createAgentTools(
       console.log(`   🔍 [retrieve] 搜索: "${query}"`);
       const docs = await hybridRetrieve(query, 6);
       console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档`);
-      const context = docs
-        .map((doc) => {
-          const title = doc.metadata?.document_title || "";
-          const section = doc.metadata?.section_title || "";
-          const prefix = title
-            ? `[${title}${section ? " - " + section : ""}]\n`
-            : "";
-          return prefix + doc.pageContent;
-        })
-        .join("\n\n");
 
       return JSON.stringify({
         documentCount: docs.length,
-        context,
+        documents: docs.map((doc) => ({
+          content: doc.pageContent,
+          metadata: doc.metadata,
+        })),
       });
     },
     {
@@ -72,20 +65,23 @@ export function createAgentTools(
   );
 
   const rerankTool = tool(
-    async ({ query, context }) => {
-      console.log(`   🎯 [rerank] 对 ${context.split("\n\n").length} 个文档重排序`);
-      const docs = context
-        .split("\n\n")
-        .filter(Boolean)
-        .map((text) => new Document({ pageContent: text }));
+    async ({ query, documents }) => {
+      const parsed = JSON.parse(documents);
+      console.log(`   🎯 [rerank] 对 ${parsed.length} 个文档重排序`);
+      const docs = parsed.map(
+        (d: { content: string; metadata?: Record<string, unknown> }) =>
+          new Document({ pageContent: d.content, metadata: d.metadata }),
+      );
 
       const reranked = await reranker.rerank(query, docs, 3);
       console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档`);
-      const rerankedContext = reranked.map((d) => d.pageContent).join("\n\n");
 
       return JSON.stringify({
         documentCount: reranked.length,
-        context: rerankedContext,
+        documents: reranked.map((d) => ({
+          content: d.pageContent,
+          metadata: d.metadata,
+        })),
       });
     },
     {
@@ -94,7 +90,7 @@ export function createAgentTools(
         "对检索结果进行重排序，返回最相关的 top 3 结果。",
       schema: z.object({
         query: z.string().describe("原始查询"),
-        context: z.string().describe("检索到的文档内容"),
+        documents: z.string().describe("检索到的文档JSON数组"),
       }),
     },
   );
