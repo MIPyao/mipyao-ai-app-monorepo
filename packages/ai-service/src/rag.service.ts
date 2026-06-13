@@ -87,7 +87,6 @@ export class RagService {
 
       const tools = createAgentTools(this.config, this.vectorStore, llm);
 
-      // @ts-ignore - subpath export not resolved by moduleResolution: Node
       const { createReactAgent } = await import("@langchain/langgraph/prebuilt");
 
       this.agent = createReactAgent({
