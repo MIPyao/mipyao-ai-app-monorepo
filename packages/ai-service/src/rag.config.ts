@@ -18,5 +18,6 @@ export interface RagConfig {
     apiKey: string;
     baseUrl: string;
     embeddingModel: string;
+    rerankModel: string;
   };
 }

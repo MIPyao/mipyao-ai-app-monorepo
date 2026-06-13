@@ -64,6 +64,9 @@ export const RAG_CONFIG_TOKEN = "RAG_CONFIG";
           embeddingModel: configService.getOrThrow<string>(
             "SILICONFLOW_EMBEDDING_MODEL",
           ),
+          rerankModel: configService.getOrThrow<string>(
+            "SILICONFLOW_RERANK_MODEL",
+          ),
         },
       }),
       inject: [ConfigService], // 依赖 ConfigService

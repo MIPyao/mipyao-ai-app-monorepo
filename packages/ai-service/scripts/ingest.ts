@@ -39,6 +39,7 @@ const getConfigFromEnv = (): RagConfig => ({
     apiKey: process.env.SILICONFLOW_API_KEY!,
     baseUrl: process.env.SILICONFLOW_BASE_URL!,
     embeddingModel: process.env.SILICONFLOW_EMBEDDING_MODEL!,
+    rerankModel: process.env.SILICONFLOW_RERANK_MODEL!,
   },
 });
 
