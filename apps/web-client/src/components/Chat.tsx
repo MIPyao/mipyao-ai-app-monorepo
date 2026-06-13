@@ -129,13 +129,24 @@ export function Chat() {
       switch (event.event) {
         case "text":
           if (event.data.content) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === aiMsgId
-                  ? { ...msg, content: msg.content + event.data.content }
-                  : msg,
-              ),
-            );
+            const chunk = event.data.content;
+            if (chunk.startsWith("[STATUS] ")) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId
+                    ? { ...msg, status: chunk.slice(9) }
+                    : msg,
+                ),
+              );
+            } else {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId
+                    ? { ...msg, content: msg.content + chunk, status: undefined }
+                    : msg,
+                ),
+              );
+            }
           }
           break;
 
@@ -202,6 +213,7 @@ export function Chat() {
       const reader = response.body.getReader();
       let done = false;
       let accumulatedContent = "";
+      let currentStatus = "";
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
@@ -211,15 +223,42 @@ export function Chat() {
           const chunk = decoder.decode(value, { stream: true });
           accumulatedContent += chunk;
 
+          let contentLines = "";
+          const lines = accumulatedContent.split("\n");
+          accumulatedContent = "";
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (i === lines.length - 1 && !chunk.endsWith("\n")) {
+              accumulatedContent = line;
+              continue;
+            }
+            if (line.startsWith("[STATUS] ")) {
+              currentStatus = line.slice(9);
+            } else {
+              if (contentLines) contentLines += "\n";
+              contentLines += line;
+            }
+          }
+
+          const finalContent = contentLines + accumulatedContent;
+          const statusSnapshot = currentStatus;
+
           setMessages((prevMessages) =>
             prevMessages.map((msg) =>
               msg.id === aiMsgId
-                ? { ...msg, content: accumulatedContent }
+                ? { ...msg, content: finalContent, status: statusSnapshot || undefined }
                 : msg,
             ),
           );
         }
       }
+
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === aiMsgId ? { ...msg, status: undefined } : msg,
+        ),
+      );
     } catch (error) {
       console.error("API 流式调用失败:", error);
       setMessages((prevMessages) =>

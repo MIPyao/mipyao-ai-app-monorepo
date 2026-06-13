@@ -5,4 +5,5 @@ export interface Message {
   role: Role;
   content: string;
   isError?: boolean;
+  status?: string;
 }
