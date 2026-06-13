@@ -60,6 +60,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
               ? "prose-a:text-white prose-a:underline"
               : "prose-a:text-primary-600"
           }`}>
+            {message.status && (
+              <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                {message.status}
+              </div>
+            )}
             {message.content ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}

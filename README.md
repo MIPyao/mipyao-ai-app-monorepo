@@ -123,28 +123,32 @@
 
 **技术栈**:
 
-- **LangChain** - LLM 应用框架
-- **OpenRouter** - LLM API (Step-3.5-flash)
-- **SiliconFlow** - 嵌入模型 API (BAAI/bge-m3)
+- **LangChain + LangGraph** - LLM 应用框架 + Agent
+- **OpenRouter** - LLM API (openrouter/owl-alpha)
+- **SiliconFlow** - 嵌入模型 (BAAI/bge-m3) + 重排序 (BAAI/bge-reranker-v2-m3)
 - **PostgreSQL + pgvector** - 向量数据库
 
 **主要功能**:
 
 - 文档向量化与存储 (SiliconFlow BAAI/bge-m3)
-- 相似度检索 (RAG)
-- LLM 问答生成 (OpenRouter Step-3.5-flash)
+- 融合检索 (向量相似度 + 元数据匹配)
+- **Agentic RAG** - 智能迭代检索（检索 → 重排序 → 充分性检查 → 迭代）
+- LLM 问答生成 (OpenRouter)
 - 流式输出支持
 
 **核心服务**:
 
-- `RagService` - RAG 核心服务类
+- `RagService` - Agentic RAG 核心服务（基于 LangGraph Agent）
+- `SiliconFlowReranker` - BGE 重排序封装
+- `SufficiencyChecker` - LLM 充分性检查
+- `QueryExpander` - 迭代查询扩展
 - 支持文档导入 (Ingestion)
 - 支持流式查询 (Streaming Query)
 
 **数据流程**:
 
 1. 文档导入 → 文本分割 → 向量化 (SiliconFlow) → 存储到 PostgreSQL
-2. 用户查询 → 向量检索 → 上下文构建 → LLM (OpenRouter) 生成回答
+2. 用户查询 → Agent 循环: 检索 → 重排序 → 充分性检查 → (不充分则迭代) → 生成回答
 
 ### 4. 语音服务 (Speech Service) - 新增
 
@@ -198,9 +202,9 @@
 
 ### AI 服务
 
-- LangChain
-- OpenRouter (Step-3.5-flash 免费 LLM)
-- SiliconFlow (BAAI/bge-m3 免费嵌入模型)
+- LangChain + LangGraph (Agent 框架)
+- OpenRouter (openrouter/owl-alpha 免费 LLM)
+- SiliconFlow (BAAI/bge-m3 嵌入 + BAAI/bge-reranker-v2-m3 重排序)
 - PostgreSQL 16 + pgvector
 
 ### 开发工具

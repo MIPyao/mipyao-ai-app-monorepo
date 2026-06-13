@@ -30,11 +30,7 @@ export const streamRagQuery = async (query: string): Promise<Response> => {
 };
 
 // Speech API
-export {
-  recognizeSpeech,
-  synthesizeSpeech,
-  synthesizeSpeechStream,
-} from "./speech";
+export { recognizeSpeech } from "./speech";
 
 // RAG-TTS API
 export { streamRagTtsQuery } from "./rag-tts";
