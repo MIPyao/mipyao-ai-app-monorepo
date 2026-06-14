@@ -8,7 +8,7 @@ import { Readable } from "stream";
 const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯一任务是**极度严格地**根据提供的"上下文"来回答用户的问题。
 
 你现在有以下工具可用：
-- rewrite_query: 将复杂问题拆分为多个子查询
+- rewrite_query: 将问题拆分为多个子查询
 - retrieve: 从简历数据库检索信息
 - rerank: 对检索结果重排序
 - check_sufficiency: 检查信息是否充分
@@ -30,14 +30,13 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 
 ## 强制工作流程（必须按顺序执行，不能跳过任何步骤）
 
-你必须严格按照以下步骤执行，不能跳过任何一步：
-
-**第一步：调用 rewrite_query 工具（如果问题涉及多个主题）**
-- 如果问题涉及多个主题（如"做过什么项目？用过什么技术？"），先调用 rewrite_query 拆分
-- 如果问题简单明确，跳过此步骤
+**第一步：调用 rewrite_query 工具**
+- 你必须首先调用 rewrite_query 将用户问题拆分为子查询
+- 即使问题看起来简单，也要调用 rewrite_query（它会判断是否需要拆分）
+- 不能跳过此步骤直接调用 retrieve
 
 **第二步：调用 retrieve 工具**
-- 对每个子查询（或原始查询）调用 retrieve 检索
+- 对 rewrite_query 返回的每个子查询分别调用 retrieve
 - 合并所有检索结果
 
 **第三步：调用 rerank 工具**
@@ -47,21 +46,20 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 **第四步：调用 check_sufficiency 工具**
 - 检查精排后的信息是否足以回答问题
 - 如果返回 sufficient: true，进入第五步
-- ⚠️ 如果返回 sufficient: false，你必须执行以下操作（不能跳过）：
-  1. 从返回结果中提取 missingInfo
-  2. 调用 expand_query 工具，传入 query=原始问题, missingInfo=缺失信息, foundInfo=已找到的信息
-  3. 使用 expand_query 返回的新查询，调用 retrieve 重新检索
-  4. 再次调用 rerank 精排
-  5. 再次调用 check_sufficiency 检查
-  6. 最多重复此迭代 2 次
+- ⚠️ 如果返回 sufficient: false，你必须：
+  1. 调用 expand_query 工具
+  2. 使用新查询重新 retrieve
+  3. 重新 rerank
+  4. 重新 check_sufficiency
+  5. 最多迭代 2 次
 
 **第五步：生成最终回答**
-- 使用精排后的上下文，以赵耀的口吻回答用户问题
-- 直接输出回答内容，不要输出工具调用过程
+- 使用检索到的上下文，以赵耀的口吻回答
+- 直接输出回答内容
 
-⚠️ 重要：
-1. 你必须先调用 retrieve，然后 rerank，然后 check_sufficiency，最后才能回答。不能跳过任何步骤！
-2. 当 check_sufficiency 返回 sufficient: false 时，你必须调用 expand_query 进行迭代，不能直接生成回答！`;
+⚠️ 关键规则：
+1. 第一步必须调用 rewrite_query，不能跳过！
+2. check_sufficiency 返回 false 时必须调用 expand_query 迭代！`;
 
 export class RagService {
   private agent: any;
@@ -163,60 +161,57 @@ export class RagService {
 
     const readable = new Readable({ read() {} });
 
-    // 使用立即执行异步函数处理查询
     (async () => {
       try {
-        // 打印分隔线和查询信息
         console.log(`\n${"=".repeat(50)}`);
         console.log(`🔎 收到查询: ${query}`);
         console.log(`${"=".repeat(50)}`);
 
-        // 定义状态映射表，将工具名称映射为状态描述
         const statusMap: Record<string, string> = {
-          rewrite_query: "正在拆分复杂问题...",
+          rewrite_query: "正在拆分问题...",
           retrieve: "正在检索相关信息...",
           rerank: "正在精排文档...",
           check_sufficiency: "正在检查信息充分性...",
           expand_query: "正在扩展查询...",
         };
 
-        // 初始化消息数组，用于存储所有消息
-        let allMessages: any[] = [];
+        let isGeneratingAnswer = false;
 
-        // 使用for await循环处理agent的流式响应
-        for await (const chunk of await this.agent.stream({
-          messages: [{ role: "user", content: query }],
-        })) {
-          // 检查chunk中是否包含agent消息
-          if (chunk.agent?.messages) {
-            allMessages = chunk.agent.messages;
-            const lastMsg = allMessages[allMessages.length - 1];
-            // 如果是AI类型消息且包含工具调用，则更新状态
-            if (lastMsg._getType() === "ai" && lastMsg.tool_calls?.length) {
-              const toolName = lastMsg.tool_calls[0].name;
-              const status = statusMap[toolName] || `正在执行 ${toolName}...`;
-              readable.push(`[STATUS] ${status}\n`);
+        // 使用 streamMode: "messages" 获取逐条消息
+        for await (const [mode, chunk] of await this.agent.stream(
+          { messages: [{ role: "user", content: query }] },
+          { streamMode: ["messages", "updates"] },
+        )) {
+          // 处理工具调用状态
+          if (mode === "updates") {
+            const toolName = Object.keys(chunk)[0];
+            if (toolName && statusMap[toolName]) {
+              readable.push(`[STATUS] ${statusMap[toolName]}\n`);
               console.log(`   🔧 工具调用: ${toolName}`);
+            }
+          }
+
+          // 处理消息流（包括最终回答）
+          if (mode === "messages") {
+            const msg = chunk[0]; // AIMessageChunk
+            if (msg._getType() === "ai") {
+              // 如果有 tool_calls，是工具调用（跳过）
+              if (msg.tool_calls?.length) continue;
+
+              // 如果有 content，是最终回答的文本片段
+              if (typeof msg.content === "string" && msg.content) {
+                if (!isGeneratingAnswer) {
+                  isGeneratingAnswer = true;
+                  console.log(`   ✍️ 开始生成回答...`);
+                }
+                readable.push(msg.content);
+              }
             }
           }
         }
 
-        // 从消息中提取最终回答内容
-        let responseContent = "";
-        for (const msg of allMessages) {
-          if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
-            responseContent = msg.content;
-          }
-        }
-
-        console.log(`\n✅ 生成回答 (${responseContent.length} 字)`);
+        console.log(`\n✅ 回答生成完毕`);
         console.log(`${"=".repeat(50)}\n`);
-
-        if (responseContent) {
-          readable.push(responseContent);
-        } else {
-          readable.push("我无法从提供的简历信息中找到确切答案。");
-        }
 
         readable.push(null);
       } catch (error) {
