@@ -47,13 +47,21 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 **第四步：调用 check_sufficiency 工具**
 - 检查精排后的信息是否足以回答问题
 - 如果返回 sufficient: true，进入第五步
-- 如果返回 sufficient: false，记录 missingInfo，然后调用 expand_query 生成新查询，再从第二步重新开始（最多重复 2 次）
+- ⚠️ 如果返回 sufficient: false，你必须执行以下操作（不能跳过）：
+  1. 从返回结果中提取 missingInfo
+  2. 调用 expand_query 工具，传入 query=原始问题, missingInfo=缺失信息, foundInfo=已找到的信息
+  3. 使用 expand_query 返回的新查询，调用 retrieve 重新检索
+  4. 再次调用 rerank 精排
+  5. 再次调用 check_sufficiency 检查
+  6. 最多重复此迭代 2 次
 
 **第五步：生成最终回答**
 - 使用精排后的上下文，以赵耀的口吻回答用户问题
 - 直接输出回答内容，不要输出工具调用过程
 
-⚠️ 重要：你必须先调用 retrieve，然后 rerank，然后 check_sufficiency，最后才能回答。不能跳过任何步骤！`;
+⚠️ 重要：
+1. 你必须先调用 retrieve，然后 rerank，然后 check_sufficiency，最后才能回答。不能跳过任何步骤！
+2. 当 check_sufficiency 返回 sufficient: false 时，你必须调用 expand_query 进行迭代，不能直接生成回答！`;
 
 export class RagService {
   private agent: any;
@@ -63,6 +71,19 @@ export class RagService {
     this.initializeAgent();
   }
 
+  /**
+   * 异步初始化 RAG (检索增强生成) Agent。
+   * 
+   * 该方法负责配置和初始化 Agent 运行所需的全部组件，包括：
+   * 1. 配置向量嵌入模型，使用 SiliconFlow 的 API 和指定的嵌入模型。
+   * 2. 初始化 PostgreSQL 向量存储库，并建立与数据库的连接。
+   * 3. 配置大语言模型 (LLM)，使用 OpenRouter 的 API 和指定的聊天模型。
+   * 4. 创建并注册 Agent 所需的工具集（重写、检索、重排、检查、扩展）。
+   * 5. 构建基于 ReAct 模式的 LangGraph Agent，并注入系统提示词。
+   * 
+   * @returns {Promise<void>} 无返回值
+   * @throws {Error} 如果配置缺失、API 连接失败、数据库初始化异常或 Agent 创建失败，则抛出错误
+   */
   private async initializeAgent() {
     try {
       const { dbConfig, openrouterConfig, siliconflowConfig } = this.config;
@@ -120,6 +141,18 @@ export class RagService {
     }
   }
 
+ /**
+   * 以流的形式异步查询 Agent 并实时返回状态与最终结果。
+   * 
+   * 该方法会检查 Agent 是否已初始化，若未初始化则尝试初始化。在执行查询时，
+   * 会将 Agent 的工具调用阶段映射为可读的状态信息并推送到流中，最后提取
+   * Agent 的最终文本回答推送到流中。如果执行过程中发生错误，将返回友好的
+   * 错误提示信息。
+   *
+   * @param {string} query - 用户输入的查询字符串。
+   * @returns {Promise<Readable>} 返回一个 Promise，解析为包含状态信息和最终回答的 Node.js 可读流 (Readable)。
+   * @throws {Error} 如果 Agent 初始化失败，则抛出错误。
+   */
   async streamQuery(query: string): Promise<Readable> {
     if (!this.agent) {
       await this.initializeAgent();
@@ -130,12 +163,15 @@ export class RagService {
 
     const readable = new Readable({ read() {} });
 
+    // 使用立即执行异步函数处理查询
     (async () => {
       try {
+        // 打印分隔线和查询信息
         console.log(`\n${"=".repeat(50)}`);
         console.log(`🔎 收到查询: ${query}`);
         console.log(`${"=".repeat(50)}`);
 
+        // 定义状态映射表，将工具名称映射为状态描述
         const statusMap: Record<string, string> = {
           rewrite_query: "正在拆分复杂问题...",
           retrieve: "正在检索相关信息...",
@@ -144,14 +180,18 @@ export class RagService {
           expand_query: "正在扩展查询...",
         };
 
+        // 初始化消息数组，用于存储所有消息
         let allMessages: any[] = [];
 
+        // 使用for await循环处理agent的流式响应
         for await (const chunk of await this.agent.stream({
           messages: [{ role: "user", content: query }],
         })) {
+          // 检查chunk中是否包含agent消息
           if (chunk.agent?.messages) {
             allMessages = chunk.agent.messages;
             const lastMsg = allMessages[allMessages.length - 1];
+            // 如果是AI类型消息且包含工具调用，则更新状态
             if (lastMsg._getType() === "ai" && lastMsg.tool_calls?.length) {
               const toolName = lastMsg.tool_calls[0].name;
               const status = statusMap[toolName] || `正在执行 ${toolName}...`;
@@ -161,7 +201,7 @@ export class RagService {
           }
         }
 
-        // Extract the final response
+        // 从消息中提取最终回答内容
         let responseContent = "";
         for (const msg of allMessages) {
           if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
