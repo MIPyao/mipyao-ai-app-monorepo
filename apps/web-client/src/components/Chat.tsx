@@ -212,8 +212,9 @@ export function Chat() {
 
       const reader = response.body.getReader();
       let done = false;
-      let accumulatedContent = "";
+      let messageContent = "";  // 累积最终回答内容
       let currentStatus = "";
+      let buffer = "";  // 处理不完整的行
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
@@ -221,37 +222,45 @@ export function Chat() {
 
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
-          accumulatedContent += chunk;
+          buffer += chunk;
 
-          let contentLines = "";
-          const lines = accumulatedContent.split("\n");
-          accumulatedContent = "";
+          // 按行处理
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";  // 最后一个可能不完整，留到下次
 
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (i === lines.length - 1 && !chunk.endsWith("\n")) {
-              accumulatedContent = line;
-              continue;
-            }
+          for (const line of lines) {
             if (line.startsWith("[STATUS] ")) {
               currentStatus = line.slice(9);
-            } else {
-              if (contentLines) contentLines += "\n";
-              contentLines += line;
+            } else if (line) {
+              messageContent += line + "\n";
             }
           }
 
-          const finalContent = contentLines + accumulatedContent;
-          const statusSnapshot = currentStatus;
-
+          // 更新消息
           setMessages((prevMessages) =>
             prevMessages.map((msg) =>
               msg.id === aiMsgId
-                ? { ...msg, content: finalContent, status: statusSnapshot || undefined }
+                ? { ...msg, content: messageContent.trim(), status: currentStatus || undefined }
                 : msg,
             ),
           );
         }
+      }
+
+      // 处理 buffer 中剩余内容
+      if (buffer) {
+        if (buffer.startsWith("[STATUS] ")) {
+          currentStatus = buffer.slice(9);
+        } else {
+          messageContent += buffer;
+        }
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === aiMsgId
+              ? { ...msg, content: messageContent.trim(), status: undefined }
+              : msg,
+          ),
+        );
       }
 
       setMessages((prevMessages) =>

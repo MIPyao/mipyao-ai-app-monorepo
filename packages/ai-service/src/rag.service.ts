@@ -175,37 +175,37 @@ export class RagService {
           expand_query: "正在扩展查询...",
         };
 
-        let isGeneratingAnswer = false;
+        let lastToolName = "";
 
-        // 使用 streamMode: "messages" 获取逐条消息
-        for await (const [mode, chunk] of await this.agent.stream(
+        // 只用 "messages" 模式，从消息中检测工具调用和最终回答
+        for await (const chunk of await this.agent.stream(
           { messages: [{ role: "user", content: query }] },
-          { streamMode: ["messages", "updates"] },
+          { streamMode: "messages" },
         )) {
-          // 处理工具调用状态
-          if (mode === "updates") {
-            const toolName = Object.keys(chunk)[0];
-            if (toolName && statusMap[toolName]) {
-              readable.push(`[STATUS] ${statusMap[toolName]}\n`);
-              console.log(`   🔧 工具调用: ${toolName}`);
-            }
-          }
+          const msg = chunk[0]; // AIMessageChunk
 
-          // 处理消息流（包括最终回答）
-          if (mode === "messages") {
-            const msg = chunk[0]; // AIMessageChunk
-            if (msg._getType() === "ai") {
-              // 如果有 tool_calls，是工具调用（跳过）
-              if (msg.tool_calls?.length) continue;
-
-              // 如果有 content，是最终回答的文本片段
-              if (typeof msg.content === "string" && msg.content) {
-                if (!isGeneratingAnswer) {
-                  isGeneratingAnswer = true;
-                  console.log(`   ✍️ 开始生成回答...`);
-                }
-                readable.push(msg.content);
+          if (msg._getType() === "ai") {
+            // 检测工具调用
+            if (msg.tool_calls?.length) {
+              const toolName = msg.tool_calls[0].name;
+              if (toolName !== lastToolName) {
+                lastToolName = toolName;
+                const status = statusMap[toolName] || `正在执行 ${toolName}...`;
+                readable.push(`[STATUS] ${status}\n`);
+                console.log(`   🔧 工具调用: ${toolName}`);
               }
+              continue;
+            }
+
+            // 检测工具返回结果（ToolMessage）
+            if (msg.name) {
+              // 这是工具返回的结果，跳过
+              continue;
+            }
+
+            // 最终回答的文本片段
+            if (typeof msg.content === "string" && msg.content) {
+              readable.push(msg.content);
             }
           }
         }
