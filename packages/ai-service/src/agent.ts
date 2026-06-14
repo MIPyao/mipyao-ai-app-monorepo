@@ -6,9 +6,11 @@ import { Document } from "@langchain/core/documents";
 import { SiliconFlowReranker } from "./reranker";
 import { SufficiencyChecker } from "./sufficiency-checker";
 import { QueryExpander } from "./query-expander";
+import { QueryRewriter } from "./query-rewriter";
 import { RagConfig } from "./rag.config";
 
 export interface AgentTools {
+  rewriteTool: DynamicStructuredTool;
   retrieveTool: DynamicStructuredTool;
   rerankTool: DynamicStructuredTool;
   checkTool: DynamicStructuredTool;
@@ -28,6 +30,7 @@ export function createAgentTools(
 
   const checker = new SufficiencyChecker(llm);
   const expander = new QueryExpander(llm);
+  const rewriter = new QueryRewriter(llm);
 
   async function hybridRetrieve(
     query: string,
@@ -132,5 +135,22 @@ export function createAgentTools(
     },
   );
 
-  return { retrieveTool, rerankTool, checkTool, expandTool };
+  const rewriteTool = tool(
+    async ({ question }) => {
+      console.log(`   🔄 [rewrite] 分析问题: "${question}"`);
+      const queries = await rewriter.rewrite(question);
+      console.log(`   🔄 [rewrite] 拆分为 ${queries.length} 个子查询: ${queries.map(q => `"${q}"`).join(", ")}`);
+      return JSON.stringify({ queries });
+    },
+    {
+      name: "rewrite_query",
+      description:
+        "将复杂问题拆分为多个子查询，用于分别检索。简单问题会直接返回原始问题。",
+      schema: z.object({
+        question: z.string().describe("用户原始问题"),
+      }),
+    },
+  );
+
+  return { rewriteTool, retrieveTool, rerankTool, checkTool, expandTool };
 }
