@@ -224,15 +224,16 @@ export function Chat() {
           const chunk = decoder.decode(value, { stream: true });
           buffer += chunk;
 
-          // 按行处理
+          // 按行处理，区分 STATUS 和内容
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";  // 最后一个可能不完整，留到下次
 
           for (const line of lines) {
             if (line.startsWith("[STATUS] ")) {
               currentStatus = line.slice(9);
-            } else {
-              messageContent += line + "\n";
+            } else if (line) {
+              // 非 STATUS 行直接追加到内容
+              messageContent += (messageContent ? "\n" : "") + line;
             }
           }
 
@@ -240,7 +241,7 @@ export function Chat() {
           setMessages((prevMessages) =>
             prevMessages.map((msg) =>
               msg.id === aiMsgId
-                ? { ...msg, content: messageContent.trim(), status: currentStatus || undefined }
+                ? { ...msg, content: messageContent, status: currentStatus || undefined }
                 : msg,
             ),
           );
@@ -252,16 +253,27 @@ export function Chat() {
         if (buffer.startsWith("[STATUS] ")) {
           currentStatus = buffer.slice(9);
         } else {
-          messageContent += buffer;
+          messageContent += (messageContent ? "\n" : "") + buffer;
         }
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) =>
-            msg.id === aiMsgId
-              ? { ...msg, content: messageContent.trim(), status: undefined }
-              : msg,
-          ),
-        );
       }
+
+      // flush decoder 缓冲区
+      const remaining = decoder.flush();
+      if (remaining) {
+        if (remaining.startsWith("[STATUS] ")) {
+          currentStatus = remaining.slice(9);
+        } else {
+          messageContent += (messageContent ? "\n" : "") + remaining;
+        }
+      }
+
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === aiMsgId
+            ? { ...msg, content: messageContent, status: undefined }
+            : msg,
+        ),
+      );
 
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
