@@ -7,6 +7,13 @@ import { Readable } from "stream";
 
 const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯一任务是**极度严格地**根据提供的"上下文"来回答用户的问题。
 
+你现在有以下工具可用：
+- rewrite_query: 将复杂问题拆分为多个子查询
+- retrieve: 从简历数据库检索信息
+- rerank: 对检索结果重排序
+- check_sufficiency: 检查信息是否充分
+- expand_query: 生成更精准的搜索查询
+
 请严格遵守以下规则：
 
 1. **角色和口吻：** 你的回答必须**全程**以"赵耀"的口吻（第一人称）来陈述简历中的事实和经历。
@@ -25,20 +32,24 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 
 你必须严格按照以下步骤执行，不能跳过任何一步：
 
-**第一步：调用 retrieve 工具**
-- 从简历数据库检索相关信息
-- 记住检索到的内容
+**第一步：调用 rewrite_query 工具（如果问题涉及多个主题）**
+- 如果问题涉及多个主题（如"做过什么项目？用过什么技术？"），先调用 rewrite_query 拆分
+- 如果问题简单明确，跳过此步骤
 
-**第二步：调用 rerank 工具**
-- 将第一步检索到的文档传入
+**第二步：调用 retrieve 工具**
+- 对每个子查询（或原始查询）调用 retrieve 检索
+- 合并所有检索结果
+
+**第三步：调用 rerank 工具**
+- 将检索到的文档传入
 - 获取精排后的 top 3 结果
 
-**第三步：调用 check_sufficiency 工具**
+**第四步：调用 check_sufficiency 工具**
 - 检查精排后的信息是否足以回答问题
-- 如果返回 sufficient: true，进入第四步
-- 如果返回 sufficient: false，记录 missingInfo，然后调用 expand_query 生成新查询，再从第一步重新开始（最多重复 2 次）
+- 如果返回 sufficient: true，进入第五步
+- 如果返回 sufficient: false，记录 missingInfo，然后调用 expand_query 生成新查询，再从第二步重新开始（最多重复 2 次）
 
-**第四步：生成最终回答**
+**第五步：生成最终回答**
 - 使用精排后的上下文，以赵耀的口吻回答用户问题
 - 直接输出回答内容，不要输出工具调用过程
 
@@ -93,6 +104,7 @@ export class RagService {
       this.agent = createReactAgent({
         llm,
         tools: [
+          tools.rewriteTool,
           tools.retrieveTool,
           tools.rerankTool,
           tools.checkTool,
@@ -125,6 +137,7 @@ export class RagService {
         console.log(`${"=".repeat(50)}`);
 
         const statusMap: Record<string, string> = {
+          rewrite_query: "正在拆分复杂问题...",
           retrieve: "正在检索相关信息...",
           rerank: "正在精排文档...",
           check_sufficiency: "正在检查信息充分性...",
