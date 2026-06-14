@@ -175,43 +175,46 @@ export class RagService {
           expand_query: "正在扩展查询...",
         };
 
+        // 使用 updates 模式获取工具调用状态
         let lastToolName = "";
+        let allMessages: any[] = [];
 
-        // 只用 "messages" 模式，从消息中检测工具调用和最终回答
         for await (const chunk of await this.agent.stream(
           { messages: [{ role: "user", content: query }] },
-          { streamMode: "messages" },
         )) {
-          const msg = chunk[0]; // AIMessageChunk
-
-          if (msg._getType() === "ai") {
-            // 检测工具调用
-            if (msg.tool_calls?.length) {
-              const toolName = msg.tool_calls[0].name;
-              if (toolName !== lastToolName) {
-                lastToolName = toolName;
-                const status = statusMap[toolName] || `正在执行 ${toolName}...`;
-                readable.push(`[STATUS] ${status}\n`);
-                console.log(`   🔧 工具调用: ${toolName}`);
-              }
-              continue;
+          // 处理 updates（工具调用）
+          if (chunk.update) {
+            const toolName = Object.keys(chunk.update)[0];
+            if (toolName && statusMap[toolName] && toolName !== lastToolName) {
+              lastToolName = toolName;
+              readable.push(`[STATUS] ${statusMap[toolName]}\n`);
+              console.log(`   🔧 工具调用: ${toolName}`);
             }
+          }
 
-            // 检测工具返回结果（ToolMessage）
-            if (msg.name) {
-              // 这是工具返回的结果，跳过
-              continue;
-            }
+          // 收集所有消息
+          if (chunk.messages) {
+            allMessages = chunk.messages;
+          }
+        }
 
-            // 最终回答的文本片段
-            if (typeof msg.content === "string" && msg.content) {
-              readable.push(msg.content);
-            }
+        // 从最终消息中提取回答
+        let responseContent = "";
+        for (const msg of allMessages) {
+          if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
+            responseContent = msg.content;
           }
         }
 
         console.log(`\n✅ 回答生成完毕`);
         console.log(`${"=".repeat(50)}\n`);
+
+        // 流式推送最终回答
+        if (responseContent) {
+          readable.push(responseContent);
+        } else {
+          readable.push("我无法从提供的简历信息中找到确切答案。");
+        }
 
         readable.push(null);
       } catch (error) {
