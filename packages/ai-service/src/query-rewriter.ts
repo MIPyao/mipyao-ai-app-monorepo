@@ -24,41 +24,47 @@ export class QueryRewriter {
   }
 
   async rewrite(question: string): Promise<string[]> {
-    const prompt = REWRITE_PROMPT.replace("{question}", question);
-
-    const response = await this.llm.invoke(prompt);
-    const content =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
-
-    // Find first complete JSON object by brace counting
-    const startIdx = content.indexOf("{");
-    if (startIdx === -1) {
-      return [question]; // Fallback to original question
-    }
-
-    let braceCount = 0;
-    let endIdx = startIdx;
-    for (let i = startIdx; i < content.length; i++) {
-      if (content[i] === "{") braceCount++;
-      if (content[i] === "}") braceCount--;
-      if (braceCount === 0) {
-        endIdx = i;
-        break;
-      }
-    }
-
-    const jsonStr = content.substring(startIdx, endIdx + 1);
-
     try {
-      const result = JSON.parse(jsonStr);
-      if (Array.isArray(result.queries) && result.queries.length > 0) {
-        return result.queries;
+      const prompt = REWRITE_PROMPT.replace("{question}", question);
+
+      const response = await this.llm.invoke(prompt);
+      const content =
+        typeof response.content === "string"
+          ? response.content
+          : JSON.stringify(response.content);
+
+      // Find first complete JSON object by brace counting
+      // Note: assumes no escaped braces in string literals (safe for our simple JSON format)
+      const startIdx = content.indexOf("{");
+      if (startIdx === -1) {
+        return [question]; // Fallback to original question
       }
-      return [question]; // Fallback
-    } catch {
-      return [question]; // Fallback
+
+      let braceCount = 0;
+      let endIdx = startIdx;
+      for (let i = startIdx; i < content.length; i++) {
+        if (content[i] === "{") braceCount++;
+        if (content[i] === "}") braceCount--;
+        if (braceCount === 0) {
+          endIdx = i;
+          break;
+        }
+      }
+
+      const jsonStr = content.substring(startIdx, endIdx + 1);
+
+      try {
+        const result = JSON.parse(jsonStr);
+        if (Array.isArray(result.queries) && result.queries.length > 0) {
+          return result.queries;
+        }
+        return [question]; // Fallback
+      } catch {
+        return [question]; // Fallback
+      }
+    } catch (error) {
+      console.error("QueryRewriter error:", error);
+      return [question]; // Fail-open: return original question
     }
   }
 }
