@@ -167,55 +167,38 @@ export class RagService {
         console.log(`🔎 收到查询: ${query}`);
         console.log(`${"=".repeat(50)}`);
 
-        const statusMap: Record<string, string> = {
-          rewrite_query: "正在拆分问题...",
-          retrieve: "正在检索相关信息...",
-          rerank: "正在精排文档...",
-          check_sufficiency: "正在检查信息充分性...",
-          expand_query: "正在扩展查询...",
-        };
+        readable.push(`[STATUS] 正在分析问题...\n`);
 
-        // 使用 updates 模式获取工具调用状态
-        let lastToolName = "";
-        let allMessages: any[] = [];
+        // 使用 invoke 而不是 stream，更稳定
+        const result = await this.agent.invoke({
+          messages: [{ role: "user", content: query }],
+        });
 
-        for await (const chunk of await this.agent.stream(
-          { messages: [{ role: "user", content: query }] },
-        )) {
-          // 处理 updates（工具调用）
-          if (chunk.update) {
-            const toolName = Object.keys(chunk.update)[0];
-            if (toolName && statusMap[toolName] && toolName !== lastToolName) {
-              lastToolName = toolName;
-              readable.push(`[STATUS] ${statusMap[toolName]}\n`);
-              console.log(`   🔧 工具调用: ${toolName}`);
-            }
-          }
+        // 从结果中提取所有消息
+        const messages = result.messages;
+        let responseContent = "";
 
-          // 收集所有消息
-          if (chunk.messages) {
-            allMessages = chunk.messages;
+        // 打印工具调用日志
+        console.log(`\n📋 Agent 执行了 ${messages.length} 步:`);
+        for (const msg of messages) {
+          if (msg._getType() === "ai" && msg.tool_calls?.length) {
+            const toolName = msg.tool_calls[0].name;
+            console.log(`   🔧 工具调用: ${toolName}`);
+            readable.push(`[STATUS] 正在执行 ${toolName}...\n`);
           }
         }
 
-        // 从最终消息中提取回答
-        let responseContent = "";
-        for (const msg of allMessages) {
+        // 提取最终回答
+        for (const msg of messages) {
           if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
             responseContent = msg.content;
           }
         }
 
-        console.log(`\n✅ 回答生成完毕`);
+        console.log(`\n✅ 回答生成完毕 (${responseContent.length} 字)`);
         console.log(`${"=".repeat(50)}\n`);
 
-        // 流式推送最终回答
-        if (responseContent) {
-          readable.push(responseContent);
-        } else {
-          readable.push("我无法从提供的简历信息中找到确切答案。");
-        }
-
+        readable.push(responseContent || "我无法从提供的简历信息中找到确切答案。");
         readable.push(null);
       } catch (error) {
         console.error("Agent 执行错误:", error);
