@@ -258,7 +258,7 @@ export function Chat() {
       }
 
       // flush decoder 缓冲区
-      const remaining = decoder.flush();
+      const remaining = decoder.decode();
       if (remaining) {
         if (remaining.startsWith("[STATUS] ")) {
           currentStatus = remaining.slice(9);
@@ -267,17 +267,12 @@ export function Chat() {
         }
       }
 
+      // 最终更新：设置内容并清除状态
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === aiMsgId
             ? { ...msg, content: messageContent, status: undefined }
             : msg,
-        ),
-      );
-
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === aiMsgId ? { ...msg, status: undefined } : msg,
         ),
       );
     } catch (error) {
