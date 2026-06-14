@@ -47,7 +47,12 @@ export function createAgentTools(
     async ({ query }) => {
       console.log(`   🔍 [retrieve] 搜索: "${query}"`);
       const docs = await hybridRetrieve(query, 6);
-      console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档`);
+      console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档:`);
+      docs.forEach((doc, i) => {
+        const title = doc.metadata?.document_title || "未知";
+        const section = doc.metadata?.section_title || "";
+        console.log(`      ${i + 1}. [${title}${section ? " - " + section : ""}] ${doc.pageContent.substring(0, 80)}...`);
+      });
 
       return JSON.stringify({
         documentCount: docs.length,
@@ -70,14 +75,22 @@ export function createAgentTools(
   const rerankTool = tool(
     async ({ query, documents }) => {
       const parsed = JSON.parse(documents);
-      console.log(`   🎯 [rerank] 对 ${parsed.length} 个文档重排序`);
+      console.log(`   🎯 [rerank] 收到 ${parsed.length} 个文档，开始精排...`);
+      parsed.forEach((d: { metadata?: Record<string, unknown> }, i: number) => {
+        const title = d.metadata?.document_title || "未知";
+        console.log(`      ${i + 1}. [${title}]`);
+      });
       const docs = parsed.map(
         (d: { content: string; metadata?: Record<string, unknown> }) =>
           new Document({ pageContent: d.content, metadata: d.metadata }),
       );
 
       const reranked = await reranker.rerank(query, docs, 3);
-      console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档`);
+      console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档:`);
+      reranked.forEach((d, i) => {
+        const title = d.metadata?.document_title || "未知";
+        console.log(`      ${i + 1}. [${title}] ${d.pageContent.substring(0, 60)}...`);
+      });
 
       return JSON.stringify({
         documentCount: reranked.length,
