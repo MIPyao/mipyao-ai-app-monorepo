@@ -42,19 +42,28 @@ export function createAgentTools(
     return keywords;
   }
 
-  // 计算文档的元数据匹配分数
+  // 计算文档的元数据匹配分数（基于关键词命中率）
   function calculateMetadataScore(doc: Document, queryKeywords: string[]): number {
     if (queryKeywords.length === 0) return 0.5;
     const documentTitle = (doc.metadata?.document_title || "").toLowerCase();
     const sectionTitle = (doc.metadata?.section_title || "").toLowerCase();
-    let totalScore = 0;
+    
+    let titleMatches = 0;
+    let sectionMatches = 0;
+    
     for (const keyword of queryKeywords) {
       const lowerKeyword = keyword.toLowerCase();
-      if (documentTitle.includes(lowerKeyword)) totalScore += 1.0;
-      if (sectionTitle.includes(lowerKeyword)) totalScore += 0.6;
+      // 检查标题包含关键词
+      if (documentTitle.includes(lowerKeyword)) titleMatches++;
+      // 检查章节包含关键词
+      if (sectionTitle.includes(lowerKeyword)) sectionMatches++;
     }
-    const maxPossibleScore = queryKeywords.length * 1.6;
-    return maxPossibleScore > 0 ? Math.min(totalScore / maxPossibleScore, 1.0) : 0.5;
+    
+    // 标题匹配权重更高
+    const titleScore = queryKeywords.length > 0 ? titleMatches / queryKeywords.length : 0;
+    const sectionScore = queryKeywords.length > 0 ? sectionMatches / queryKeywords.length : 0;
+    
+    return titleScore * 0.7 + sectionScore * 0.3;
   }
 
   // 融合检索：向量相似度 + 元数据匹配
