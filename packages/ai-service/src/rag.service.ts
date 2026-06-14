@@ -204,8 +204,8 @@ export class RagService {
             }
 
             // 最终回答的文本片段
-            if (typeof msg.content === "string" && msg.content) {
-              readable.push(msg.content);
+            if (msg.text) {
+              readable.push(msg.text);
             }
           }
         }
