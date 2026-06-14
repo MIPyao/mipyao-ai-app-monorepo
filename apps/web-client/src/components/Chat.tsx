@@ -231,7 +231,7 @@ export function Chat() {
           for (const line of lines) {
             if (line.startsWith("[STATUS] ")) {
               currentStatus = line.slice(9);
-            } else if (line) {
+            } else {
               messageContent += line + "\n";
             }
           }

@@ -32,15 +32,50 @@ export function createAgentTools(
   const expander = new QueryExpander(llm);
   const rewriter = new QueryRewriter(llm);
 
+  // 从查询中提取关键词
+  function extractQueryKeywords(query: string): string[] {
+    const keywords: string[] = [];
+    const chineseWords = query.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    keywords.push(...chineseWords);
+    const englishWords = query.match(/[A-Za-z]{3,}/g) || [];
+    keywords.push(...englishWords.map((w) => w.toLowerCase()));
+    return keywords;
+  }
+
+  // 计算文档的元数据匹配分数
+  function calculateMetadataScore(doc: Document, queryKeywords: string[]): number {
+    if (queryKeywords.length === 0) return 0.5;
+    const documentTitle = (doc.metadata?.document_title || "").toLowerCase();
+    const sectionTitle = (doc.metadata?.section_title || "").toLowerCase();
+    let totalScore = 0;
+    for (const keyword of queryKeywords) {
+      const lowerKeyword = keyword.toLowerCase();
+      if (documentTitle.includes(lowerKeyword)) totalScore += 1.0;
+      if (sectionTitle.includes(lowerKeyword)) totalScore += 0.6;
+    }
+    const maxPossibleScore = queryKeywords.length * 1.6;
+    return maxPossibleScore > 0 ? Math.min(totalScore / maxPossibleScore, 1.0) : 0.5;
+  }
+
+  // 融合检索：向量相似度 + 元数据匹配
   async function hybridRetrieve(
     query: string,
     k: number = 6,
   ): Promise<Document[]> {
-    const vectorResults = await vectorStore.similaritySearchWithScore(query, k);
-    return vectorResults
-      .sort((a, b) => a[1] - b[1])
+    const vectorResults = await vectorStore.similaritySearchWithScore(query, k * 2);
+    const queryKeywords = extractQueryKeywords(query);
+
+    const scoredDocs = vectorResults.map(([doc, distance]) => {
+      const metadataScore = calculateMetadataScore(doc, queryKeywords);
+      const vectorSimilarity = 1 - distance;
+      const hybridScore = vectorSimilarity * 0.6 + metadataScore * 0.4;
+      return { doc, score: hybridScore };
+    });
+
+    return scoredDocs
+      .sort((a, b) => b.score - a.score)
       .slice(0, k)
-      .map(([doc]) => doc);
+      .map((item) => item.doc);
   }
 
   const retrieveTool = tool(
