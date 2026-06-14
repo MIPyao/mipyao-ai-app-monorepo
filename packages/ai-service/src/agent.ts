@@ -64,11 +64,14 @@ export function createAgentTools(
   ): Promise<Document[]> {
     const vectorResults = await vectorStore.similaritySearchWithScore(query, k * 2);
     const queryKeywords = extractQueryKeywords(query);
+    console.log(`      🔑 关键词: ${queryKeywords.join(", ")}`);
 
     const scoredDocs = vectorResults.map(([doc, distance]) => {
       const metadataScore = calculateMetadataScore(doc, queryKeywords);
       const vectorSimilarity = 1 - distance;
       const hybridScore = vectorSimilarity * 0.6 + metadataScore * 0.4;
+      const title = doc.metadata?.document_title || "未知";
+      console.log(`      📊 [${title}] 向量: ${vectorSimilarity.toFixed(3)} × 0.6 + 元数据: ${metadataScore.toFixed(3)} × 0.4 = ${hybridScore.toFixed(3)}`);
       return { doc, score: hybridScore };
     });
 
