@@ -3,3 +3,4 @@ export { RagConfig } from "./rag.config";
 export { SiliconFlowReranker } from "./reranker";
 export { SufficiencyChecker, SufficiencyResult } from "./sufficiency-checker";
 export { QueryExpander } from "./query-expander";
+export { QueryRewriter } from "./query-rewriter";

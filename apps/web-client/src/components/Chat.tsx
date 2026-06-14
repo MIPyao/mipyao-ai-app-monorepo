@@ -212,8 +212,9 @@ export function Chat() {
 
       const reader = response.body.getReader();
       let done = false;
-      let accumulatedContent = "";
+      let messageContent = "";  // 累积最终回答内容
       let currentStatus = "";
+      let buffer = "";  // 处理不完整的行
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
@@ -221,42 +222,57 @@ export function Chat() {
 
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
-          accumulatedContent += chunk;
+          buffer += chunk;
 
-          let contentLines = "";
-          const lines = accumulatedContent.split("\n");
-          accumulatedContent = "";
+          // 按行处理，区分 STATUS 和内容
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";  // 最后一个可能不完整，留到下次
 
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (i === lines.length - 1 && !chunk.endsWith("\n")) {
-              accumulatedContent = line;
-              continue;
-            }
+          for (const line of lines) {
             if (line.startsWith("[STATUS] ")) {
               currentStatus = line.slice(9);
-            } else {
-              if (contentLines) contentLines += "\n";
-              contentLines += line;
+            } else if (line) {
+              // 非 STATUS 行直接追加到内容
+              messageContent += (messageContent ? "\n" : "") + line;
             }
           }
 
-          const finalContent = contentLines + accumulatedContent;
-          const statusSnapshot = currentStatus;
-
+          // 更新消息
           setMessages((prevMessages) =>
             prevMessages.map((msg) =>
               msg.id === aiMsgId
-                ? { ...msg, content: finalContent, status: statusSnapshot || undefined }
+                ? { ...msg, content: messageContent, status: currentStatus || undefined }
                 : msg,
             ),
           );
         }
       }
 
+      // 处理 buffer 中剩余内容
+      if (buffer) {
+        if (buffer.startsWith("[STATUS] ")) {
+          currentStatus = buffer.slice(9);
+        } else {
+          messageContent += (messageContent ? "\n" : "") + buffer;
+        }
+      }
+
+      // flush decoder 缓冲区
+      const remaining = decoder.decode();
+      if (remaining) {
+        if (remaining.startsWith("[STATUS] ")) {
+          currentStatus = remaining.slice(9);
+        } else {
+          messageContent += (messageContent ? "\n" : "") + remaining;
+        }
+      }
+
+      // 最终更新：设置内容并清除状态
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === aiMsgId ? { ...msg, status: undefined } : msg,
+          msg.id === aiMsgId
+            ? { ...msg, content: messageContent, status: undefined }
+            : msg,
         ),
       );
     } catch (error) {

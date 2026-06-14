@@ -7,6 +7,13 @@ import { Readable } from "stream";
 
 const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯一任务是**极度严格地**根据提供的"上下文"来回答用户的问题。
 
+你现在有以下工具可用：
+- rewrite_query: 将问题拆分为多个子查询
+- retrieve: 从简历数据库检索信息
+- rerank: 对检索结果重排序
+- check_sufficiency: 检查信息是否充分
+- expand_query: 生成更精准的搜索查询
+
 请严格遵守以下规则：
 
 1. **角色和口吻：** 你的回答必须**全程**以"赵耀"的口吻（第一人称）来陈述简历中的事实和经历。
@@ -23,26 +30,36 @@ const AGENT_SYSTEM_PROMPT = `你是一个专业的简历问答助手。你的唯
 
 ## 强制工作流程（必须按顺序执行，不能跳过任何步骤）
 
-你必须严格按照以下步骤执行，不能跳过任何一步：
+**第一步：调用 rewrite_query 工具**
+- 你必须首先调用 rewrite_query 将用户问题拆分为子查询
+- 即使问题看起来简单，也要调用 rewrite_query（它会判断是否需要拆分）
+- 不能跳过此步骤直接调用 retrieve
 
-**第一步：调用 retrieve 工具**
-- 从简历数据库检索相关信息
-- 记住检索到的内容
+**第二步：调用 retrieve 工具**
+- 对 rewrite_query 返回的每个子查询分别调用 retrieve
+- 合并所有检索结果
 
-**第二步：调用 rerank 工具**
-- 将第一步检索到的文档传入
+**第三步：调用 rerank 工具**
+- 将检索到的文档传入
 - 获取精排后的 top 3 结果
 
-**第三步：调用 check_sufficiency 工具**
+**第四步：调用 check_sufficiency 工具**
 - 检查精排后的信息是否足以回答问题
-- 如果返回 sufficient: true，进入第四步
-- 如果返回 sufficient: false，记录 missingInfo，然后调用 expand_query 生成新查询，再从第一步重新开始（最多重复 2 次）
+- 如果返回 sufficient: true，进入第五步
+- ⚠️ 如果返回 sufficient: false，你必须：
+  1. 调用 expand_query 工具
+  2. 使用新查询重新 retrieve
+  3. 重新 rerank
+  4. 重新 check_sufficiency
+  5. 最多迭代 2 次
 
-**第四步：生成最终回答**
-- 使用精排后的上下文，以赵耀的口吻回答用户问题
-- 直接输出回答内容，不要输出工具调用过程
+**第五步：生成最终回答**
+- 使用检索到的上下文，以赵耀的口吻回答
+- 直接输出回答内容
 
-⚠️ 重要：你必须先调用 retrieve，然后 rerank，然后 check_sufficiency，最后才能回答。不能跳过任何步骤！`;
+⚠️ 关键规则：
+1. 第一步必须调用 rewrite_query，不能跳过！
+2. check_sufficiency 返回 false 时必须调用 expand_query 迭代！`;
 
 export class RagService {
   private agent: any;
@@ -52,6 +69,19 @@ export class RagService {
     this.initializeAgent();
   }
 
+  /**
+   * 异步初始化 RAG (检索增强生成) Agent。
+   * 
+   * 该方法负责配置和初始化 Agent 运行所需的全部组件，包括：
+   * 1. 配置向量嵌入模型，使用 SiliconFlow 的 API 和指定的嵌入模型。
+   * 2. 初始化 PostgreSQL 向量存储库，并建立与数据库的连接。
+   * 3. 配置大语言模型 (LLM)，使用 OpenRouter 的 API 和指定的聊天模型。
+   * 4. 创建并注册 Agent 所需的工具集（重写、检索、重排、检查、扩展）。
+   * 5. 构建基于 ReAct 模式的 LangGraph Agent，并注入系统提示词。
+   * 
+   * @returns {Promise<void>} 无返回值
+   * @throws {Error} 如果配置缺失、API 连接失败、数据库初始化异常或 Agent 创建失败，则抛出错误
+   */
   private async initializeAgent() {
     try {
       const { dbConfig, openrouterConfig, siliconflowConfig } = this.config;
@@ -93,6 +123,7 @@ export class RagService {
       this.agent = createReactAgent({
         llm,
         tools: [
+          tools.rewriteTool,
           tools.retrieveTool,
           tools.rerankTool,
           tools.checkTool,
@@ -108,6 +139,18 @@ export class RagService {
     }
   }
 
+ /**
+   * 以流的形式异步查询 Agent 并实时返回状态与最终结果。
+   * 
+   * 该方法会检查 Agent 是否已初始化，若未初始化则尝试初始化。在执行查询时，
+   * 会将 Agent 的工具调用阶段映射为可读的状态信息并推送到流中，最后提取
+   * Agent 的最终文本回答推送到流中。如果执行过程中发生错误，将返回友好的
+   * 错误提示信息。
+   *
+   * @param {string} query - 用户输入的查询字符串。
+   * @returns {Promise<Readable>} 返回一个 Promise，解析为包含状态信息和最终回答的 Node.js 可读流 (Readable)。
+   * @throws {Error} 如果 Agent 初始化失败，则抛出错误。
+   */
   async streamQuery(query: string): Promise<Readable> {
     if (!this.agent) {
       await this.initializeAgent();
@@ -125,45 +168,50 @@ export class RagService {
         console.log(`${"=".repeat(50)}`);
 
         const statusMap: Record<string, string> = {
+          rewrite_query: "正在拆分问题...",
           retrieve: "正在检索相关信息...",
           rerank: "正在精排文档...",
           check_sufficiency: "正在检查信息充分性...",
           expand_query: "正在扩展查询...",
         };
 
-        let allMessages: any[] = [];
+        let lastToolName = "";
 
-        for await (const chunk of await this.agent.stream({
-          messages: [{ role: "user", content: query }],
-        })) {
-          if (chunk.agent?.messages) {
-            allMessages = chunk.agent.messages;
-            const lastMsg = allMessages[allMessages.length - 1];
-            if (lastMsg._getType() === "ai" && lastMsg.tool_calls?.length) {
-              const toolName = lastMsg.tool_calls[0].name;
-              const status = statusMap[toolName] || `正在执行 ${toolName}...`;
-              readable.push(`[STATUS] ${status}\n`);
-              console.log(`   🔧 工具调用: ${toolName}`);
+        // 只用 "messages" 模式，从消息中检测工具调用和最终回答
+        for await (const chunk of await this.agent.stream(
+          { messages: [{ role: "user", content: query }] },
+          { streamMode: "messages" },
+        )) {
+          const msg = chunk[0]; // AIMessageChunk
+
+          if (msg._getType() === "ai") {
+            // 检测工具调用
+            if (msg.tool_calls?.length) {
+              const toolName = msg.tool_calls[0].name;
+              if (toolName !== lastToolName) {
+                lastToolName = toolName;
+                const status = statusMap[toolName] || `正在执行 ${toolName}...`;
+                readable.push(`[STATUS] ${status}\n`);
+                console.log(`   🔧 工具调用: ${toolName}`);
+              }
+              continue;
+            }
+
+            // 检测工具返回结果（ToolMessage）
+            if (msg.name) {
+              // 这是工具返回的结果，跳过
+              continue;
+            }
+
+            // 最终回答的文本片段
+            if (msg.text) {
+              readable.push(msg.text);
             }
           }
         }
 
-        // Extract the final response
-        let responseContent = "";
-        for (const msg of allMessages) {
-          if (msg._getType() === "ai" && typeof msg.content === "string" && msg.content && !msg.tool_calls?.length) {
-            responseContent = msg.content;
-          }
-        }
-
-        console.log(`\n✅ 生成回答 (${responseContent.length} 字)`);
+        console.log(`\n✅ 回答生成完毕`);
         console.log(`${"=".repeat(50)}\n`);
-
-        if (responseContent) {
-          readable.push(responseContent);
-        } else {
-          readable.push("我无法从提供的简历信息中找到确切答案。");
-        }
 
         readable.push(null);
       } catch (error) {

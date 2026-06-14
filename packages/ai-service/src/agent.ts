@@ -6,9 +6,11 @@ import { Document } from "@langchain/core/documents";
 import { SiliconFlowReranker } from "./reranker";
 import { SufficiencyChecker } from "./sufficiency-checker";
 import { QueryExpander } from "./query-expander";
+import { QueryRewriter } from "./query-rewriter";
 import { RagConfig } from "./rag.config";
 
 export interface AgentTools {
+  rewriteTool: DynamicStructuredTool;
   retrieveTool: DynamicStructuredTool;
   rerankTool: DynamicStructuredTool;
   checkTool: DynamicStructuredTool;
@@ -28,23 +30,67 @@ export function createAgentTools(
 
   const checker = new SufficiencyChecker(llm);
   const expander = new QueryExpander(llm);
+  const rewriter = new QueryRewriter(llm);
 
+  // 从查询中提取关键词
+  function extractQueryKeywords(query: string): string[] {
+    const keywords: string[] = [];
+    const chineseWords = query.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    keywords.push(...chineseWords);
+    const englishWords = query.match(/[A-Za-z]{3,}/g) || [];
+    keywords.push(...englishWords.map((w) => w.toLowerCase()));
+    return keywords;
+  }
+
+  // 计算文档的元数据匹配分数
+  function calculateMetadataScore(doc: Document, queryKeywords: string[]): number {
+    if (queryKeywords.length === 0) return 0.5;
+    const documentTitle = (doc.metadata?.document_title || "").toLowerCase();
+    const sectionTitle = (doc.metadata?.section_title || "").toLowerCase();
+    let totalScore = 0;
+    for (const keyword of queryKeywords) {
+      const lowerKeyword = keyword.toLowerCase();
+      if (documentTitle.includes(lowerKeyword)) totalScore += 1.0;
+      if (sectionTitle.includes(lowerKeyword)) totalScore += 0.6;
+    }
+    const maxPossibleScore = queryKeywords.length * 1.6;
+    return maxPossibleScore > 0 ? Math.min(totalScore / maxPossibleScore, 1.0) : 0.5;
+  }
+
+  // 融合检索：向量相似度 + 元数据匹配
   async function hybridRetrieve(
     query: string,
     k: number = 6,
   ): Promise<Document[]> {
-    const vectorResults = await vectorStore.similaritySearchWithScore(query, k);
-    return vectorResults
-      .sort((a, b) => a[1] - b[1])
+    const vectorResults = await vectorStore.similaritySearchWithScore(query, k * 2);
+    const queryKeywords = extractQueryKeywords(query);
+    console.log(`      🔑 关键词: ${queryKeywords.join(", ")}`);
+
+    const scoredDocs = vectorResults.map(([doc, distance]) => {
+      const metadataScore = calculateMetadataScore(doc, queryKeywords);
+      const vectorSimilarity = 1 - distance;
+      const hybridScore = vectorSimilarity * 0.6 + metadataScore * 0.4;
+      const title = doc.metadata?.document_title || "未知";
+      console.log(`      📊 [${title}] 向量: ${vectorSimilarity.toFixed(3)} × 0.6 + 元数据: ${metadataScore.toFixed(3)} × 0.4 = ${hybridScore.toFixed(3)}`);
+      return { doc, score: hybridScore };
+    });
+
+    return scoredDocs
+      .sort((a, b) => b.score - a.score)
       .slice(0, k)
-      .map(([doc]) => doc);
+      .map((item) => item.doc);
   }
 
   const retrieveTool = tool(
     async ({ query }) => {
       console.log(`   🔍 [retrieve] 搜索: "${query}"`);
       const docs = await hybridRetrieve(query, 6);
-      console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档`);
+      console.log(`   📄 [retrieve] 找到 ${docs.length} 个文档:`);
+      docs.forEach((doc, i) => {
+        const title = doc.metadata?.document_title || "未知";
+        const section = doc.metadata?.section_title || "";
+        console.log(`      ${i + 1}. [${title}${section ? " - " + section : ""}] ${doc.pageContent.substring(0, 80)}...`);
+      });
 
       return JSON.stringify({
         documentCount: docs.length,
@@ -67,14 +113,22 @@ export function createAgentTools(
   const rerankTool = tool(
     async ({ query, documents }) => {
       const parsed = JSON.parse(documents);
-      console.log(`   🎯 [rerank] 对 ${parsed.length} 个文档重排序`);
+      console.log(`   🎯 [rerank] 收到 ${parsed.length} 个文档，开始精排...`);
+      parsed.forEach((d: { metadata?: Record<string, unknown> }, i: number) => {
+        const title = d.metadata?.document_title || "未知";
+        console.log(`      ${i + 1}. [${title}]`);
+      });
       const docs = parsed.map(
         (d: { content: string; metadata?: Record<string, unknown> }) =>
           new Document({ pageContent: d.content, metadata: d.metadata }),
       );
 
       const reranked = await reranker.rerank(query, docs, 3);
-      console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档`);
+      console.log(`   ✨ [rerank] 精排后保留 ${reranked.length} 个文档:`);
+      reranked.forEach((d, i) => {
+        const title = d.metadata?.document_title || "未知";
+        console.log(`      ${i + 1}. [${title}] ${d.pageContent.substring(0, 60)}...`);
+      });
 
       return JSON.stringify({
         documentCount: reranked.length,
@@ -132,5 +186,22 @@ export function createAgentTools(
     },
   );
 
-  return { retrieveTool, rerankTool, checkTool, expandTool };
+  const rewriteTool = tool(
+    async ({ question }) => {
+      console.log(`   🔄 [rewrite] 分析问题: "${question}"`);
+      const queries = await rewriter.rewrite(question);
+      console.log(`   🔄 [rewrite] 拆分为 ${queries.length} 个子查询: ${queries.map(q => `"${q}"`).join(", ")}`);
+      return JSON.stringify({ queries });
+    },
+    {
+      name: "rewrite_query",
+      description:
+        "将复杂问题拆分为多个子查询，用于分别检索。简单问题会直接返回原始问题。",
+      schema: z.object({
+        question: z.string().describe("用户原始问题"),
+      }),
+    },
+  );
+
+  return { rewriteTool, retrieveTool, rerankTool, checkTool, expandTool };
 }
