@@ -267,7 +267,7 @@ async function ingestData() {
 
     // 分割文档
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 500,
+      chunkSize: 1200,
       chunkOverlap: 100,
     });
 
