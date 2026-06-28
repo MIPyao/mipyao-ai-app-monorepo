@@ -19,9 +19,12 @@ import { Readable } from "stream";
 export class RagService {
   private deps: RagDeps | undefined;
   private vectorStore: PGVectorStore | undefined;
+  /** 共享初始化 Promise：并发请求复用同一个，避免重复初始化和 unhandled rejection */
+  private initPromise: Promise<void>;
 
   constructor(private readonly config: RagConfig) {
-    this.initialize();
+    // 启动初始化并保存 Promise，拒绝会沿 await 链传播而非变成 unhandled rejection
+    this.initPromise = this.initialize();
   }
 
   /**
@@ -82,11 +85,10 @@ export class RagService {
    * @throws {Error} 依赖未初始化成功
    */
   async streamQuery(query: string): Promise<Readable> {
+    // 复用共享 initPromise，并发请求不会触发第二次 initialize()
+    await this.initPromise;
     if (!this.deps) {
-      await this.initialize();
-      if (!this.deps) {
-        throw new Error("Agent 未初始化成功");
-      }
+      throw new Error("Agent 未初始化成功");
     }
 
     const readable = new Readable({ read() {} });
