@@ -194,12 +194,6 @@ rag.service.ts          # 薄代理（零改动）
 rag.module.ts           # DI（零改动）
 ```
 
-## 已知问题
-
-### 向量库 chunk 重复
-
-`ingest.ts` 中 `RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 100 })` 对简历短文档切分过细，导致同一段内容出现多个重叠 chunk（如"专业技能"出现 3 次）。建议后续优化 chunk 策略：简历 section 级别的文档（几百到一千多字）适合整段入库不切分，或调大 `chunkSize` 到 1500+。
-
 ## 后续迭代计划
 
 ### Phase 3: 多数据源路由（Cross-Corpus Routing）
