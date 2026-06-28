@@ -61,7 +61,9 @@ async function hybridRetrieve(
 
   const scoredDocs = vectorResults.map(([doc, distance]) => {
     const metadataScore = calculateMetadataScore(doc, queryKeywords);
-    const vectorSimilarity = 1 - distance;
+    // PGVector 默认 cosine 距离 ∈ [0, 2]（0=完全相同，2=完全相反）。
+    // 归一化为 [0, 1] 的相似度，与 metadataScore 同尺度，使 0.6/0.4 权重生效。
+    const vectorSimilarity = 1 - distance / 2;
     const hybridScore = vectorSimilarity * 0.6 + metadataScore * 0.4;
     const title = doc.metadata?.document_title || "未知";
     console.log(`      📊 [${title}] 向量: ${vectorSimilarity.toFixed(3)} × 0.6 + 元数据: ${metadataScore.toFixed(3)} × 0.4 = ${hybridScore.toFixed(3)}`);
