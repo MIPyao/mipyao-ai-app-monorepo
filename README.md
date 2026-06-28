@@ -1,6 +1,6 @@
 # MIPYao AI 简历助手
 
-一个基于 RAG (检索增强生成) 技术的智能简历问答系统，使用 Next.js、NestJS 和 LangChain.js 构建。
+一个基于 RAG (检索增强生成) 技术的智能简历问答系统，使用 Next.js、NestJS 和 LangGraph 构建。基于 Agentic RAG 架构，支持查询拆分、混合检索、精排、充分性检查和智能迭代。
 
 ## 📸 运行截图
 
@@ -17,7 +17,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                      Web Client                         │
-│                   Next.js (端口 4001)                    │
+│                   Next.js (端口 4322)                    │
 │   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
 │   │   VoiceInput  │  │ ChatMessage   │  │ StreamAudio│ │
 │   │   (语音输入)   │  │   (消息展示)   │  │  Player    │ │
@@ -27,7 +27,7 @@
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │                      API Server                         │
-│                  NestJS (端口 4000)                      │
+│                  NestJS (端口 4321)                       │
 │   ┌───────────────┐  ┌───────────────┐  ┌────────────┐ │
 │   │ RagController │  │SpeechController│ │RagTtsCtrl  │ │
 │   │   /rag/stream │  │  /speech/*     │ │/rag-tts/*  │ │
@@ -36,7 +36,7 @@
             │                  │                │
     ┌───────▼───────┐  ┌──────▼──────┐  ┌──────▼──────┐
     │  AI Service   │  │   Speech    │  │    Both     │
-    │  (LangChain)  │  │   Service   │  │             │
+    │  (LangGraph)  │  │   Service   │  │             │
     └───────┬───────┘  └──────┬───────┘  └─────────────┘
             │                 │
      ┌──────┴──────┐    ┌─────┴─────┐
@@ -59,14 +59,42 @@
 本项目采用 LangChain 官方推荐的三明治架构模式：
 
 ```
-用户语音 → ASR → LangChain (RAG) → TTS → 语音输出
-              ↑                        ↑
-         Speech Service           Speech Service
+用户语音 → ASR → LangGraph (Agentic RAG) → TTS → 语音输出
+                   ↑                              ↑
+              AI Service                    Speech Service
 ```
 
-- **AI Service (LangChain)**: 只处理文本，专注 RAG
+- **AI Service (LangGraph)**: 只处理文本，专注 Agentic RAG
 - **Speech Service**: 独立处理音频，不依赖 LangChain
 - **API Server**: 作为协调层，编排语音和 AI 的调用
+
+### Agentic RAG 流程
+
+基于 LangGraph StateGraph 的显式状态图 + 条件边保证流程顺序：
+
+```
+START
+  │
+  ▼
+rewrite ────────────────────────────┐  (将复杂问题拆分为子查询)
+  │                                 │
+  ▼                                 │
+retrieve ◄──────────────────┐       │  (对每个子查询混合检索 top 6)
+  │                         │       │
+  ▼                         │       │
+rerank ──────────────────────────────┘  (BGE 精排 top 3)
+  │
+  ▼
+check ──(条件边)──► 充分 OR 达到迭代上限 ──► generate ──► END
+  │
+  └──(不充分且未到上限)──► expand ─────────► (回到 retrieve)
+```
+
+- **查询拆分 (rewrite)**: 将复杂问题拆分为独立子查询
+- **混合检索 (retrieve)**: 向量相似度 × 0.6 + 元数据匹配 × 0.4
+- **精排 (rerank)**: BGE 重排序取 top 3
+- **充分性检查 (check)**: 中间草稿机制，先试答再判断缺失
+- **迭代补全 (expand)**: 根据缺失关键词生成定向查询（最多 2 轮）
 
 ### 1. 前端服务 (Web Client)
 
@@ -75,8 +103,9 @@
 **技术栈**:
 
 - **Next.js 16** - React 框架
+- **React 19** + **React Compiler** - 编译时优化
 - **TypeScript** - 类型安全
-- **Tailwind CSS** - 样式框架
+- **Tailwind CSS 4** - 样式框架
 - **Lucide React** - 图标库
 - **React Markdown** - Markdown 渲染
 
@@ -84,14 +113,17 @@
 
 - 用户界面展示
 - 聊天交互组件
-- 流式响应处理
+- 流式响应处理（状态提示 + 逐字回答）
 - 欢迎屏幕与建议问题
+- 语音输入与流式语音朗读
 
 **核心组件**:
 
 - `Chat.tsx` - 主聊天组件
 - `ChatMessage.tsx` - 消息展示组件
 - `WelcomeScreen.tsx` - 欢迎界面组件
+- `VoiceInput.tsx` - 语音输入按钮
+- `StreamAudioPlayer.tsx` - 流式音频播放器
 
 ### 2. 后端服务 (API Server)
 
@@ -99,23 +131,22 @@
 
 **技术栈**:
 
-- **NestJS** - Node.js 企业级框架
+- **NestJS 11** - Node.js 企业级框架
 - **TypeScript** - 类型安全
 - **Swagger** - API 文档
 
 **主要功能**:
 
 - RESTful API 接口
-- 流式响应处理
+- 流式响应处理 (SSE)
 - 错误处理与日志记录
 - API 文档自动生成
 
 **核心接口**:
 
 - `GET /rag/stream?query=xxx` - 流式 RAG 问答接口
-- `POST /speech/asr` - 语音识别 (新增)
-- `POST /speech/tts` - 语音合成 (新增)
-- `GET /rag-tts/stream?query=xxx` - 流式 RAG + TTS (新增)
+- `POST /speech/asr` - 语音识别
+- `GET /rag-tts/stream?query=xxx` - 流式 RAG + TTS
 
 ### 3. AI 服务 (AI Service)
 
@@ -123,34 +154,36 @@
 
 **技术栈**:
 
-- **LangChain + LangGraph** - LLM 应用框架 + Agent
-- **OpenRouter** - LLM API (openrouter/owl-alpha)
+- **LangGraph StateGraph** - 显式状态图 + 条件边驱动 Agent 流程
+- **LangChain** - LLM 应用框架
+- **OpenRouter** - LLM API (inclusionai/ling-2.6-flash:free)
 - **SiliconFlow** - 嵌入模型 (BAAI/bge-m3) + 重排序 (BAAI/bge-reranker-v2-m3)
 - **PostgreSQL + pgvector** - 向量数据库
 
 **主要功能**:
 
 - 文档向量化与存储 (SiliconFlow BAAI/bge-m3)
+- **Agentic RAG** - 基于 StateGraph 的智能迭代检索
 - 融合检索 (向量相似度 + 元数据匹配)
-- **Agentic RAG** - 智能迭代检索（检索 → 重排序 → 充分性检查 → 迭代）
 - LLM 问答生成 (OpenRouter)
 - 流式输出支持
 
 **核心服务**:
 
-- `RagService` - Agentic RAG 核心服务（基于 LangGraph Agent）
+- `RagService` - 入口：StateGraph 编排 + `streamQuery()`
+- `StateGraph (rag-graph.ts)` - 图定义：状态/节点/条件边
+- `createRagDeps (agent.ts)` - 纯逻辑依赖工厂
+- `QueryRewriter` - 复杂问题拆分为子查询
 - `SiliconFlowReranker` - BGE 重排序封装
-- `SufficiencyChecker` - LLM 充分性检查
-- `QueryExpander` - 迭代查询扩展
-- 支持文档导入 (Ingestion)
-- 支持流式查询 (Streaming Query)
+- `SufficiencyChecker` - 中间草稿充分性检查
+- `QueryExpander` - 缺失关键词定向查询
 
 **数据流程**:
 
 1. 文档导入 → 文本分割 → 向量化 (SiliconFlow) → 存储到 PostgreSQL
-2. 用户查询 → Agent 循环: 检索 → 重排序 → 充分性检查 → (不充分则迭代) → 生成回答
+2. 用户查询 → StateGraph: rewrite → retrieve → rerank → check → (expand 循环) → generate
 
-### 4. 语音服务 (Speech Service) - 新增
+### 4. 语音服务 (Speech Service)
 
 **位置**: `packages/speech-service`
 
@@ -170,7 +203,6 @@
 **核心接口**:
 
 - `POST /speech/asr` - 语音识别
-- `POST /speech/tts` - 语音合成
 - `GET /rag-tts/stream` - 流式 RAG + TTS（边生成边朗读）
 
 **前端组件**:
@@ -190,7 +222,7 @@
 ### 前端
 
 - Next.js 16.0.8
-- React 19.2.1
+- React 19.2.1 + React Compiler
 - TypeScript 5
 - Tailwind CSS 4
 
@@ -202,7 +234,8 @@
 
 ### AI 服务
 
-- LangChain + LangGraph (Agent 框架)
+- LangGraph (StateGraph Agent 框架)
+- LangChain (LLM 应用框架)
 - OpenRouter (openrouter/owl-alpha 免费 LLM)
 - SiliconFlow (BAAI/bge-m3 嵌入 + BAAI/bge-reranker-v2-m3 重排序)
 - PostgreSQL 16 + pgvector
@@ -222,7 +255,7 @@
 2. **pnpm** >= 10.25.0
 3. **Docker** 和 **Docker Compose** (用于运行 PostgreSQL)
 4. **OpenRouter API Key** (用于 LLM)
-5. **SiliconFlow API Key** (用于嵌入模型)
+5. **SiliconFlow API Key** (用于嵌入模型 + 重排序 + ASR/TTS)
 
 ### 获取 API Key
 
@@ -240,7 +273,7 @@
 
 ### 环境配置
 
-在项目根目录创建 `.env` 文件（如果不存在），配置以下环境变量：
+复制 `.env.example` 为 `.env`，配置以下环境变量：
 
 ```env
 # --- RAG/PostgreSQL 配置 ---
@@ -259,31 +292,30 @@ OPENROUTER_MODEL=openrouter/owl-alpha
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_TEMPERATURE=0.1
 
-# --- SiliconFlow 配置 (Embeddings + ASR) ---
+# --- SiliconFlow 配置 (Embeddings + Rerank + ASR/TTS) ---
 SILICONFLOW_API_KEY=你的SiliconFlow_API_Key
 SILICONFLOW_EMBEDDING_MODEL=BAAI/bge-m3
 SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
-# --- ASR 语音识别配置 (新增) ---
+# --- Reranker 配置 ---
+SILICONFLOW_RERANK_MODEL=BAAI/bge-reranker-v2-m3
+
+# --- ASR 语音识别配置 ---
 # 可选: siliconflow, openrouter, browser
 ASR_PROVIDER=siliconflow
-# SiliconFlow ASR 模型 (免费)
 ASR_MODEL=FunAudioLLM/SenseVoiceSmall
 
-# --- TTS 语音合成配置 (新增) ---
+# --- TTS 语音合成配置 ---
 # 当前仅支持: siliconflow
 TTS_PROVIDER=siliconflow
-# SiliconFlow TTS 模型 (推荐: CosyVoice2-0.5B)
 TTS_MODEL=FunAudioLLM/CosyVoice2-0.5B
-# TTS 音色 (siliconflow 支持多个音色，如: FunAudioLLM/CosyVoice2-0.5B:alex,  :sophia 等)
 TTS_VOICE=FunAudioLLM/CosyVoice2-0.5B:alex
 
 # --- 前端配置 ---
-# Nest.js API 后端实际运行的地址
-NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:4000
+NEXT_PUBLIC_NESTJS_API_BASE_URL=http://localhost:4321
 ```
 
-> **注意**: 由于 Windows Hyper-V 端口限制，PostgreSQL 默认端口改为 5000。如果遇到端口冲突，可以修改 `docker-compose.yaml` 中的端口映射。
+> **注意**: 由于 Windows Hyper-V 端口限制，PostgreSQL 默认端口改为 5000，后端端口 4321，前端端口 4322（避开 Hyper-V 保留的 3521-4220）。
 
 ### 启动步骤
 
@@ -328,8 +360,8 @@ pnpm dev
 
 这将同时启动：
 
-- **API 服务器**: http://localhost:4000
-- **Web 客户端**: http://localhost:4001
+- **API 服务器**: http://localhost:4321
+- **Web 客户端**: http://localhost:4322
 
 ### 单独启动服务
 
@@ -393,39 +425,45 @@ mipyao-ai-app-monorepo/
 │   ├── api-server/          # NestJS 后端服务
 │   │   ├── src/
 │   │   │   ├── rag/         # RAG 控制器和服务
-│   │   │   ├── speech/      # 语音服务模块 (新增)
+│   │   │   ├── speech/      # 语音服务模块
 │   │   │   └── main.ts      # 应用入口
 │   │   └── package.json
 │   └── web-client/          # Next.js 前端应用
 │       ├── src/
 │       │   ├── app/         # Next.js App Router
 │       │   ├── components/  # React 组件
-│       │   │   ├── VoiceInput.tsx       # 语音输入 (新增)
-│       │   │   ├── StreamAudioPlayer.tsx # 流式播放器 (新增)
+│       │   │   ├── VoiceInput.tsx       # 语音输入
+│       │   │   ├── StreamAudioPlayer.tsx # 流式播放器
 │       │   │   ├── Chat.tsx             # 主聊天组件
 │       │   │   ├── ChatMessage.tsx      # 消息展示
 │       │   │   └── WelcomeScreen.tsx    # 欢迎界面
 │       │   ├── api/         # API 调用
-│       │   │   ├── speech.ts            # 语音 API (新增)
-│       │   │   ├── rag-tts.ts           # RAG+TTS API (新增)
+│       │   │   ├── speech.ts            # 语音 API
+│       │   │   ├── rag-tts.ts           # RAG+TTS API
 │       │   │   └── index.ts
 │       │   └── lib/         # 工具函数
 │       └── package.json
 ├── packages/
 │   ├── ai-service/          # RAG 核心服务包
 │   │   ├── src/
-│   │   │   ├── rag.service.ts    # RAG 服务实现
-│   │   │   └── rag.config.ts     # 配置接口
+│   │   │   ├── rag.service.ts    # 入口：StateGraph 编排 + streamQuery
+│   │   │   ├── rag-graph.ts      # 图定义：状态/节点/条件边
+│   │   │   ├── agent.ts          # 纯逻辑依赖工厂（createRagDeps）
+│   │   │   ├── query-rewriter.ts # 复杂问题拆分为子查询
+│   │   │   ├── reranker.ts       # SiliconFlow BGE 重排序
+│   │   │   ├── sufficiency-checker.ts # 中间草稿充分性检查
+│   │   │   ├── query-expander.ts # 缺失关键词定向查询
+│   │   │   ├── rag.config.ts     # 配置类型
+│   │   │   └── index.ts
 │   │   ├── data/            # 简历数据文件
 │   │   └── scripts/         # 数据导入和测试脚本
-│   └── speech-service/      # 语音服务包 (新增)
+│   └── speech-service/      # 语音服务包
 │       ├── src/
 │       │   ├── asr/         # ASR 语音识别
 │       │   │   ├── asr.interface.ts
 │       │   │   └── siliconflow.asr.ts
 │       │   ├── tts/         # TTS 语音合成
 │       │   │   ├── tts.interface.ts
-│       │   │   ├── edge.tts.ts
 │       │   │   └── siliconflow.tts.ts
 │       │   ├── stream/      # 流式处理工具
 │       │   │   ├── text-splitter.ts
@@ -436,7 +474,7 @@ mipyao-ai-app-monorepo/
 │       └── package.json
 ├── image/                   # 项目截图
 ├── docker-compose.yaml      # PostgreSQL 容器配置
-├── .env.example             # 环境变量模板 (新增)
+├── .env.example             # 环境变量模板
 ├── pnpm-workspace.yaml      # pnpm workspace 配置
 └── package.json            # 根 package.json
 ```
@@ -455,14 +493,15 @@ mipyao-ai-app-monorepo/
 
 - **LLM 模型**: 修改 `OPENROUTER_MODEL`
 - **嵌入模型**: 修改 `SILICONFLOW_EMBEDDING_MODEL`
+- **重排序模型**: 修改 `SILICONFLOW_RERANK_MODEL`
 
-修改后需要重新导入数据。
+修改嵌入模型后需要重新导入数据。
 
 ### API 文档
 
-启动 API 服务器后，访问 http://localhost:4000/api-docs 查看 Swagger API 文档。
+启动 API 服务器后，访问 http://localhost:4321/api-docs 查看 Swagger API 文档。
 
-## 🎤 语音功能使用指南 (新增)
+## 🎤 语音功能使用指南
 
 ### 语音输入 (ASR)
 
@@ -486,8 +525,7 @@ mipyao-ai-app-monorepo/
 
 **支持的 TTS 服务**:
 
-- **SiliconFlow**: 使用 CosyVoice2-0.5B 模型
-- **OpenRouter**: 复用现有 API Key
+- **SiliconFlow**: 使用 CosyVoice2-0.5B 模型（注意：TTS 已开始收费，前端 TTS 开关关闭时不会调用）
 
 ### 流式 TTS
 
@@ -511,7 +549,7 @@ LLM 生成文本 → 分句检测 → TTS 转换 → 实时播放
 ### 数据库连接失败
 
 - 确保 Docker 容器正在运行：`docker ps`
-- 检查数据库端口 5000 或应用端口 4000/4001 是否被占用
+- 检查数据库端口 5000 是否被占用
 - 验证 `.env` 文件中的数据库配置
 - 如果遇到 Windows 端口问题，检查 docker-compose.yaml 中的端口映射
 
@@ -538,7 +576,7 @@ LLM 生成文本 → 分句检测 → TTS 转换 → 实时播放
 ### 前端无法连接后端
 
 - 检查 `NEXT_PUBLIC_NESTJS_API_BASE_URL` 环境变量
-- 确认 API 服务器正在运行在端口 4000
+- 确认 API 服务器正在运行在端口 4321
 - 检查浏览器控制台的网络请求错误
 
 ### 嵌入维度不匹配
