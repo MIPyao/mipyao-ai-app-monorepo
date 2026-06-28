@@ -96,8 +96,12 @@ export class SufficiencyChecker {
 
     try {
       const result = JSON.parse(jsonStr);
-      const sufficient = Boolean(result.sufficient);
       const missingInfo = this.normalizeMissingInfo(result.missingInfo);
+      const parsedSufficient =
+        result.sufficient === true ||
+        (typeof result.sufficient === "string" &&
+          result.sufficient.trim().toLowerCase() === "true");
+      const sufficient = parsedSufficient && missingInfo.length === 0;
 
       return {
         sufficient,

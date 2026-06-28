@@ -35,7 +35,7 @@ export class QueryExpander {
     query: string,
     missingInfo: string[],
     foundInfo: string,
-  ): Promise<string> {
+  ): Promise<string[]> {
     const missingKeywords = missingInfo.join("、");
     const prompt = EXPAND_PROMPT.replace("{question}", query)
       .replace("{foundInfo}", foundInfo)
@@ -50,17 +50,21 @@ export class QueryExpander {
 
       const queries = content
         .split("\n")
-        .map((line) => line.replace(/^["'\-\*\d.\s]+|["']$/g, "").trim())
+        .map((line) =>
+          line
+          .replace(/^\s*(?:[-*]\s+|\d+[.)、]\s*)/, "")
+          .replace(/^["']|["']$/g, "")
+          .trim(),
+        )
         .filter((line) => line.length > 0);
 
       if (queries.length === 0) {
-        return missingKeywords || query;
+        return missingInfo.length > 0 ? missingInfo : [query];
       }
-      // 多个定向查询合并为一条用空格分隔的检索串，单次 retrieve 即可覆盖所有缺失点
-      return queries.join(" ");
+      return queries;
     } catch (error) {
       console.error("QueryExpander error:", error);
-      return missingKeywords || query;
+      return missingInfo.length > 0 ? missingInfo : [query];
     }
   }
 }

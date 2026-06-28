@@ -183,10 +183,10 @@ async function expandNode(
   const missingInfo = state.sufficiency?.missingInfo ?? [];
   const context = formatContext(state.documents);
   console.log(`   🔄 [expand] 生成新查询 (缺失: ${missingInfo.join(" / ")})`);
-  const expandedQuery = await deps.expander.expand(state.query, missingInfo, context);
-  console.log(`   🔄 [expand] 新查询: "${expandedQuery}"`);
+  const expandedQueries = await deps.expander.expand(state.query, missingInfo, context);
+  console.log(`   🔄 [expand] 新查询: ${expandedQueries.map((q) => `"${q}"`).join(", ")}`);
   return {
-    subQueries: [expandedQuery],
+    subQueries: expandedQueries.length > 0 ? expandedQueries : [state.query],
     iteration: state.iteration + 1,
   };
 }
